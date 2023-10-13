@@ -6,20 +6,29 @@ output:
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 ```{r echo=F}
-install.packages("reticulate")
+library("tidyr")
 
-library(reticulate)
+convert_to_ISOdate <- function(col_name) {
+  if (grepl("\\.\\d{10}$", col_name)) {
+    #extract the datafield name
+    date_field<- sub("\\..*$", "", col_name)
+    # Extract the Unix timestamp from the column name
+    timestamp <- as.numeric(sub(".*\\.", "", col_name))
+    
+    # Convert the Unix timestamp to a human-readable date
+    date <- as.POSIXct(timestamp, origin = "1970-01-01", tz = "")
+    
+    # Create a new column name with the human-readable date
+    new_col_name <- paste0(date_field,".",format(date, format = "%Y%m%d-%H:%M:%S"))
+    
+    return(new_col_name)
+  } else {
+    return(col_name)
+  }
+}
+
 
 ```
-Python withings-api Build status Coverage Status PyPI Python library for the Withings Health API
-
-Withings Health API https://developer.withings.com/oauth2/
-
-Uses OAuth 2.0 to authenticate. You need to obtain a client id and consumer secret from Withings by creating an application here: http://developer.withings.com/oauth2/
-
-    pip install withings-api
-
-
 ## Withings pulse HR
 
 ## Prerequisites
@@ -72,31 +81,132 @@ https://wbsapi.withings.net
 
 Note: when setting up an app, the Callback URL should be set to http://localhost:1410/. This is not supposed to be allowed, but it does seems to work. This is handy because allows for the callback to be (e.g.) on a laptop for testing.
 
-```{python }
+```{r}
+client_id <- "be15110fa9ce5d7f43eb15bd76fdf3ee84c6f25e1f7912db8bfa942d4556058a"
+client_secret <- "781930cdc258cfddff8b5ee8eba1f0e12f3a48c5e181e2bb4fb3c907089287ab"
+#token <- withings_auth(client_id, client_secret)
 
-from withings_api import WithingsAuth, WithingsApi, AuthScope
-from withings_api.common import get_measure_value, MeasureType
+userid<-32118337
+access_token<-"40061260b6950a2d939ea3a197eba06e9574ec32"
 
-auth = WithingsAuth(
-    client_id='',
-    consumer_secret='',
-    callback_uri='http://localhost:1410/', # localhost restricts to 10 users
-    mode='demo',  # Used for testing. Remove this when getting real user data.
-    scope=(
-        AuthScope.USER_ACTIVITY,
-        AuthScope.USER_METRICS,
-        AuthScope.USER_INFO,
-        AuthScope.USER_SLEEP_EVENTS,
-    )
-)
 
-authorize_url = auth.get_authorize_url()
-# Have the user goto authorize_url and authorize the app. They will be redirected back to your redirect_uri.
+```
+## HEART
+```{r}
 
-credentials = auth.get_credentials('https://wbsapi.withings.net')
+startdate   <-"2023-10-03" 
+enddate     <-"2023-10-04"
+data_fields <-""
 
-# Now you are ready to make calls for data.
-api = WithingsApi(credentials)
 
-meas_result = api.measure_get_meas()
-weight_or_none = get_measure_value(meas_result, with_measure_type=MeasureType.WEIGHT)
+req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=getsummary",
+                 query = list(access_token = access_token,
+                              startdateymd = startdate, 
+                              enddateymd = startdate,
+                              data_fields = data_fields))
+
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+if (out$status == 0) {
+        out$body$series <- jsonlite::flatten(out$body$series)
+        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series <- dplyr::arrange(out$body$series, startdate)
+    }
+
+sleepSumDF<-out$body$series
+
+#new_col_names <- sapply(colnames(sleepDF), convert_to_ISOdate)
+#colnames(sleepDF) <- new_col_names
+
+
+```
+## SLEEP
+
+```{r}
+
+startdate   <-"2023-10-03" 
+enddate     <-"2023-10-04"
+data_fields <-"hr,rr,snoring,sdnn_1,rmssd,mvt_score"
+# > hr        : Heart Rate.
+# > rr        : Respiration Rate.
+# > snoring   : Total snoring time
+# > sdnn_1    : Heart rate variability - Standard deviation of the NN over 1 minute
+# > rmssd     : Heart rate variability - Root mean square of the successive 
+#               differences over "a few seconds"
+# > mvt_score : Track the intensity of movement in bed on a minute-by-minute basis. 
+#               Only available for EU devices and devices under prescription.
+
+
+UnixStartDate <- startdate %>%  strptime("%Y-%m-%d") %>% as.numeric()
+UnixEndDate <- enddate %>%  strptime("%Y-%m-%d") %>% as.numeric()
+
+
+req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=get", 
+                 query = list(access_token = access_token,
+                              startdate = UnixStartDate, 
+                              enddate = UnixEndDate,
+                              data_fields = data_fields))
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+if (out$status == 0) {
+        out$body$series <- jsonlite::flatten(out$body$series)
+        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series <- dplyr::arrange(out$body$series, startdate)
+    }
+
+sleepDF<-out$body$series
+
+new_col_names <- sapply(colnames(sleepDF), convert_to_ISOdate)
+colnames(sleepDF) <- new_col_names
+
+
+```
+
+## SLEEP SUMMARY
+```{r}
+
+startdate   <-"2023-10-03" 
+enddate     <-"2023-10-04"
+data_fields <-""
+
+
+req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=getsummary",
+                 query = list(access_token = access_token,
+                              startdateymd = startdate, 
+                              enddateymd = startdate,
+                              data_fields = data_fields))
+
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+if (out$status == 0) {
+        out$body$series <- jsonlite::flatten(out$body$series)
+        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series <- dplyr::arrange(out$body$series, startdate)
+    }
+
+sleepSumDF<-out$body$series
+
+#new_col_names <- sapply(colnames(sleepDF), convert_to_ISOdate)
+#colnames(sleepDF) <- new_col_names
+
+
+```
