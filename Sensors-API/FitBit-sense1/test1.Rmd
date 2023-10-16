@@ -1,31 +1,12 @@
 ---
-title: "Python withingsAPI"
+title: "Fitbit API"
 output: 
   github_document:
     toc: True
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 ```{r echo=F}
-library("tidyr")
-
-convert_to_ISOdate <- function(col_name) {
-  if (grepl("\\.\\d{10}$", col_name)) {
-    #extract the datafield name
-    date_field<- sub("\\..*$", "", col_name)
-    # Extract the Unix timestamp from the column name
-    timestamp <- as.numeric(sub(".*\\.", "", col_name))
-    
-    # Convert the Unix timestamp to a human-readable date
-    date <- as.POSIXct(timestamp, origin = "1970-01-01", tz = "")
-    
-    # Create a new column name with the human-readable date
-    new_col_name <- paste0(date_field,".",format(date, format = "%Y%m%d-%H:%M:%S"))
-    
-    return(new_col_name)
-  } else {
-    return(col_name)
-  }
-}
+library("fitbitr")
 
 
 ```
