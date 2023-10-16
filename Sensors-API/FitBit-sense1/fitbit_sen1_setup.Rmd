@@ -7,8 +7,9 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 ```{r echo=F}
 library("fitbitr")
-library("reticulate")
+#library("reticulate")
 #py_install("fitbit")
+library("ggplot2")
 
 ```
 
@@ -27,8 +28,6 @@ CALLBACK_URL<-"http://localhost:1410/"
 authorization_URI<-"https://www.fitbit.com/oauth2/authorize"
 Token_Request_URI<-"https://api.fitbit.com/oauth2/token"
 
-library("fitbitr")
-
 APP_NAME<-"sense1_test"
 
 fitbitr_token <- generate_fitbitr_token(
@@ -38,15 +37,115 @@ fitbitr_token <- generate_fitbitr_token(
   cache = TRUE
 )
 
+
+
+
 ```
-## ACTIVITY
+## Heart rate
 ```{r}
 
 # Example date
 date <- "2023-10-16"
-get_activity_summary(date)
+start_date <- lubridate::today() - lubridate::weeks(1)
+end_date <- lubridate::today()
 
-df <- get_activity_intraday_time_series(token, "steps", date, detail_level="15min")
-df$time <- as.POSIXct(strptime(paste0(df$dateTime, " ", df$dataset_time), "%Y-%m-%d %H:%M:%S"))
-ggplot2::ggplot(df, aes(x=time, y=dataset_value)) + geom_line()
+
+get_calories(start_date, end_date)
+
+heartR_1Hdata<-get_heart_rate_intraday(
+  date = lubridate::today(),
+  detail_level = "1sec",#c("1sec", "1min", "5min", "15min"),
+  start_time = "12:15:00",
+  end_time = "13:15:00"
+) 
+
+heartR_1mindata<-get_heart_rate_intraday(
+  date = lubridate::today(),
+  detail_level = "1sec",#c("1sec", "1min", "5min", "15min"),
+  start_time = "12:15:00",
+  end_time = "12:16:00"
+) 
+
+
+ggplot(heartR_1Hdata, aes(x=time, y=heart_rate)) +
+  geom_line() + 
+  xlab("")
+
+ ggplot(heartR_1mindata, aes(x=time, y=heart_rate)) +
+  scale_x_datetime(date_breaks = "2 sec", date_labels = "%OS")+
+  #scale_x_datetime(minor_breaks = "2 sec")+
+  geom_line() + 
+  geom_point() +
+  xlab(paste("1 minute from:","12:15:00"))
+
+
+
+```
+
+
+## All activity types
+```{r}
+
+start_time <- "12:15:00"
+end_time   <- "13:15:00"
+
+distance<-get_distance_intraday(
+date = lubridate::today(),
+detail_level = "1min", #c("1min", "5min", "15min"),
+start_time = start_time,
+  end_time = end_time
+)
+
+steps<-get_steps_intraday(
+date = lubridate::today(),
+detail_level = "1min", #c("1min", "5min", "15min"),
+start_time = start_time,
+  end_time = end_time
+)
+
+
+p_dist<-ggplot(distance, aes(x=time, y=distance)) +
+  geom_line() + 
+  xlab("distance")
+
+ggplot(steps, aes(x=time, y=steps)) +
+  geom_line() + 
+  xlab("steps")
+
+p_dist + geom_line(data = steps, aes(x = time, y = steps*0.001), color = "red") +
+  scale_y_continuous(
+    name = "Distance (km)",
+    sec.axis = sec_axis(~./0.001, name = "Steps")
+  ) +
+  scale_color_manual(values = c("blue", "red"))
+  
+```
+## minutes sedentary
+
+```{r}
+
+
+
+get_sed_intraday<- function (date = lubridate::today(), detail_level = c("1min", 
+    "5min", "15min"), start_time = NULL, end_time = NULL){
+    detail_level <- match.arg(detail_level)
+    stop_for_one_sided_interval(start_time, end_time)
+    get_intraday_time_series(resource = "minutesSedentary", date = date, 
+        detail_level = detail_level, start_time = start_time, 
+        end_time = end_time)
+}
+
+
+
+start_time <- "12:15:00"
+end_time   <- "13:15:00"
+
+min_sed<-get_sed_intraday(
+date = lubridate::today(),
+detail_level = "1min", #c("1min", "5min", "15min"),
+start_time = start_time,
+  end_time = end_time
+)
+
+
 ```
