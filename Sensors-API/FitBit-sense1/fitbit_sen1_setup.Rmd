@@ -7,54 +7,10 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 ```{r echo=F}
 library("fitbitr")
-
+library("reticulate")
+#py_install("fitbit")
 
 ```
-## Withings pulse HR
-
-## Prerequisites
-
-Before being able to use this package, and the Withings Health Mate API, you will need to create a Withings account and a Withings developer app. Instructions are provided in the [developer's guide](http://developer.withings.com/oauth2/).
-
-Note: when setting up an app, the Callback URL should be set to http://localhost:1410/. This is not supposed to be allowed, but it does seems to work, and I haven't been able to make it work using another address. 
-
-## API plans
-Withings Standard/Free Plan
-
-Withings Standard/Free Plan includes:
-
-* 5000 active users 
-* 120 requests per minute for your API project 
-
-## Security and compliance
-
-### Withings EU Medical Cloud / Public Cloud (HIPAA/HDS)
-Based in France, our EU Medical Cloud / Public Cloud is **GDPR compliant**, HDS, HIPAA and ISO 27001:2017 certified.
-By design, our privacy policy ensures that user data is safely collected.
-
-### Withings US Medical Cloud (HIPAA)
-
-Withings complies with HIPAA rules and regulations so that our services can be more effectively integrated by entities that are covered by HIPAA. Our US Medical Cloud is a US based, ISO 27001:2017 certified and HIPAA compliant.
-
-
-
-## API SPECS
-
-DATA is fetched from Cloud not from the device directly (no websocket on dev)
-
-Free for providers with under 5,000 users.
-
-
-## API integration
-
-### Create your Application
-First, create the Withings account that will be used for your integration. Although using your personal Withings account is possible, we recommend that you create a new account for your organization. Creating an Application will provide you with a cliendId and client_secret that you will use to access our services.
-
-#### Target endpoint
-
-Please use the following endpoint for all requests you will perform on our APIs :
-
-https://wbsapi.withings.net
 
 ## Use
 
@@ -62,132 +18,35 @@ https://wbsapi.withings.net
 
 Note: when setting up an app, the Callback URL should be set to http://localhost:1410/. This is not supposed to be allowed, but it does seems to work. This is handy because allows for the callback to be (e.g.) on a laptop for testing.
 
-```{r}
-client_id <- "be15110fa9ce5d7f43eb15bd76fdf3ee84c6f25e1f7912db8bfa942d4556058a"
-client_secret <- "781930cdc258cfddff8b5ee8eba1f0e12f3a48c5e181e2bb4fb3c907089287ab"
-#token <- withings_auth(client_id, client_secret)
+```{r eval=FALSE}
+#devtools::install_github("mrkaye97/fitbitr")
 
-userid<-32118337
-access_token<-"40061260b6950a2d939ea3a197eba06e9574ec32"
+FITBIT_CLIENT_ID <- "23RBL4"
+FITBIT_CLIENT_SECRET <- "5584bef963882c9134273b0f77574bb5"
+CALLBACK_URL<-"http://localhost:1410/"
+authorization_URI<-"https://www.fitbit.com/oauth2/authorize"
+Token_Request_URI<-"https://api.fitbit.com/oauth2/token"
 
+library("fitbitr")
 
-```
-## HEART
-```{r}
+APP_NAME<-"sense1_test"
 
-startdate   <-"2023-10-03" 
-enddate     <-"2023-10-04"
-data_fields <-""
-
-
-req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=getsummary",
-                 query = list(access_token = access_token,
-                              startdateymd = startdate, 
-                              enddateymd = startdate,
-                              data_fields = data_fields))
-
-out <- httr::content(req, as = "text", encoding = "utf-8")
-out <- jsonlite::fromJSON(out)
-
-out$status
-
-if (out$status == 0) {
-        out$body$series <- jsonlite::flatten(out$body$series)
-        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
-            tz = "", origin = "1970-01-01")
-        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
-            tz = "", origin = "1970-01-01")
-        out$body$series <- dplyr::arrange(out$body$series, startdate)
-    }
-
-sleepSumDF<-out$body$series
-
-#new_col_names <- sapply(colnames(sleepDF), convert_to_ISOdate)
-#colnames(sleepDF) <- new_col_names
-
+fitbitr_token <- generate_fitbitr_token(
+  client_id = FITBIT_CLIENT_ID,
+  client_secret = FITBIT_CLIENT_SECRET,
+  callback = CALLBACK_URL,
+  cache = TRUE
+)
 
 ```
-## SLEEP
-
+## ACTIVITY
 ```{r}
 
-startdate   <-"2023-10-03" 
-enddate     <-"2023-10-04"
-data_fields <-"hr,rr,snoring,sdnn_1,rmssd,mvt_score"
-# > hr        : Heart Rate.
-# > rr        : Respiration Rate.
-# > snoring   : Total snoring time
-# > sdnn_1    : Heart rate variability - Standard deviation of the NN over 1 minute
-# > rmssd     : Heart rate variability - Root mean square of the successive 
-#               differences over "a few seconds"
-# > mvt_score : Track the intensity of movement in bed on a minute-by-minute basis. 
-#               Only available for EU devices and devices under prescription.
+# Example date
+date <- "2023-10-16"
+get_activity_summary(date)
 
-
-UnixStartDate <- startdate %>%  strptime("%Y-%m-%d") %>% as.numeric()
-UnixEndDate <- enddate %>%  strptime("%Y-%m-%d") %>% as.numeric()
-
-
-req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=get", 
-                 query = list(access_token = access_token,
-                              startdate = UnixStartDate, 
-                              enddate = UnixEndDate,
-                              data_fields = data_fields))
-httr::stop_for_status(req)
-out <- httr::content(req, as = "text", encoding = "utf-8")
-out <- jsonlite::fromJSON(out)
-
-out$status
-
-if (out$status == 0) {
-        out$body$series <- jsonlite::flatten(out$body$series)
-        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
-            tz = "", origin = "1970-01-01")
-        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
-            tz = "", origin = "1970-01-01")
-        out$body$series <- dplyr::arrange(out$body$series, startdate)
-    }
-
-sleepDF<-out$body$series
-
-new_col_names <- sapply(colnames(sleepDF), convert_to_ISOdate)
-colnames(sleepDF) <- new_col_names
-
-
-```
-
-## SLEEP SUMMARY
-```{r}
-
-startdate   <-"2023-10-03" 
-enddate     <-"2023-10-04"
-data_fields <-""
-
-
-req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=getsummary",
-                 query = list(access_token = access_token,
-                              startdateymd = startdate, 
-                              enddateymd = startdate,
-                              data_fields = data_fields))
-
-out <- httr::content(req, as = "text", encoding = "utf-8")
-out <- jsonlite::fromJSON(out)
-
-out$status
-
-if (out$status == 0) {
-        out$body$series <- jsonlite::flatten(out$body$series)
-        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
-            tz = "", origin = "1970-01-01")
-        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
-            tz = "", origin = "1970-01-01")
-        out$body$series <- dplyr::arrange(out$body$series, startdate)
-    }
-
-sleepSumDF<-out$body$series
-
-#new_col_names <- sapply(colnames(sleepDF), convert_to_ISOdate)
-#colnames(sleepDF) <- new_col_names
-
-
+df <- get_activity_intraday_time_series(token, "steps", date, detail_level="15min")
+df$time <- as.POSIXct(strptime(paste0(df$dateTime, " ", df$dataset_time), "%Y-%m-%d %H:%M:%S"))
+ggplot2::ggplot(df, aes(x=time, y=dataset_value)) + geom_line()
 ```
