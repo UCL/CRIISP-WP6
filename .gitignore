@@ -3,4 +3,10 @@
 .RData
 .Ruserdata
 .httr-oauth
+.keras
 /APIauth/
+venv/
+__pycache__/
+.ipynb_checkpoints
+.python-version
+
