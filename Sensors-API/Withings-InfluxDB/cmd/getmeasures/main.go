@@ -261,8 +261,16 @@ func testGetsleep() {
 func testGetsleepsummary() {
 	fmt.Println("========== Getsleepsummary[START] ========== ")
 
-	slpsum, err := client.GetSleepSummary(sd, ed, 0, withings.SSBdi, withings.SSDsd, withings.SSD2s, withings.SSD2w, withings.SSHrAvr, withings.SSHrMax, withings.SSHrMin, withings.SSDsli, withings.SSRsdur, withings.SSRRAvr, withings.SSRRMax, withings.SSRRMin, withings.SSSS,
-		withings.SSSng, withings.SSSngEC, withings.SSWupC, withings.SSWupD)
+	slpsum, err := client.GetSleepSummary(sd, ed, 0, 
+		withings.SSDsd, withings.SSDsli, withings.SSRsdur,
+		withings.SSD2s, withings.SSD2w, 
+		withings.SSHrAvr, withings.SSHrMax, withings.SSHrMin, 
+		withings.SSWupC, withings.SSWupD,
+		withings.SSSS, // sleep score
+		withings.SSSng, withings.SSSngEC, // snooring episode & count
+		withings.SSBdi, 
+		withings.SSRRAvr, withings.SSRRMax, withings.SSRRMin,
+		)
 
 	if err != nil {
 		fmt.Println("getSleepSummary Error!")
@@ -276,8 +284,16 @@ func testGetsleepsummary() {
 		stime := (stimeUnix.In(loc)).Format(layout2)
 		etime := (etimeUnix.In(loc)).Format(layout2)
 		message := fmt.Sprintf(
-			"%s-%s: BDI:%d, duration to deep sleep(sec):%d, duration to sleep(sec):%d, duration to wakeup(sec):%d, HrAverage:%d, Max:%d, Min:%d, WakeupCounts:%d",
-			stime, etime, v.Data.BreathingDisturbancesIntensity, v.Data.Deepsleepduration, v.Data.Durationtosleep, v.Data.Durationtowakeup, v.Data.HrAverage, v.Data.HrMax, v.Data.HrMin, v.Data.Wakeupcount)
+			"%s-%s: deep sleep duration(sec):%d, light sleep duration(sec):%d, REM sleep duration(sec):%d, duration to sleep(sec):%d, duration to wakeup(sec):%d,HrAverage:%d, Max:%d, Min:%d, WakeupCounts:%d, Wakeupduration:%d, SleepScore %d, Snoring %d, Snoring ep. count %d,BDI:%d, RrAverage:%d, RrMax:%d, RrMin:%d",
+			stime, etime, 
+			v.Data.Deepsleepduration, v.Data.Lightsleepduration, v.Data.Remsleepduration,
+			v.Data.Durationtosleep, v.Data.Durationtowakeup, 
+			v.Data.HrAverage, v.Data.HrMax, v.Data.HrMin, 
+			v.Data.Wakeupcount,v.Data.Wakeupduration,
+			v.Data.SleepScore,
+			v.Data.Snoring,v.Data.Snoringepisodecount,
+			v.Data.BreathingDisturbancesIntensity, 
+			v.Data.RrAverage,v.Data.RrMax,v.Data.RrMin)
 		fmt.Println(message)
 	}
 	//fmt.Println(slpsum)
@@ -293,8 +309,8 @@ func main() {
 	mainSetup()
 
 //	testGetmeas()
-	testGetactivity()
+//	testGetactivity()
 //	testGetworkouts()
-	testGetsleep()
-//	testGetsleepsummary()
+//	testGetsleep()
+	testGetsleepsummary()
 }
