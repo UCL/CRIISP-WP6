@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	jst        *time.Location
+	loc        *time.Location
 	t          time.Time
 	adayago    time.Time
 	lastupdate time.Time
@@ -84,19 +84,24 @@ func tokenFuncs() {
 }
 
 func mainSetup() {
-	jst = time.FixedZone("Asis/Tokyo", 9*60*60)
-	t = time.Now()
+	var err error
+	loc, err = time.LoadLocation("Local")
+	if err != nil {
+		fmt.Println("Failed to load location:", err)
+		return
+	}
+	//t = time.Now()
+	t = time.Date(2024, 2, 15, 0, 0, 0, 0, loc) // I set this now for testing old data
 	// to get sample data from 2 days ago to now
 	adayago = t.Add(-48 * time.Hour)
 	ed = t.Format(layout)
 	sd = adayago.Format(layout)
 	lastupdate = withings.OffsetBase
-	//lastupdate = time.Date(2020, 12, 20, 0, 0, 0, 0, time.UTC)
 }
 
 func printMeas(v withings.MeasureData, name, unit string) {
 	fmt.Printf("%s(Grpid:%v, Category:%v, Attrib: %v, DeviceID:%v)\n", name, v.GrpID, v.Category, v.Attrib, v.DeviceID)
-	fmt.Printf("%v, %.1f %s\n", v.Date.In(jst).Format(layout2), v.Value, unit)
+	fmt.Printf("%v, %.1f %s\n", v.Date.In(loc).Format(layout2), v.Value, unit)
 }
 
 func testGetmeas() {
@@ -217,7 +222,10 @@ func testGetworkouts() {
 func testGetsleep() {
 	fmt.Println("========== Getsleep[START] ========== ")
 
-	slp, err := client.GetSleep(adayago, t, withings.HrSleep,withings.RrSleep, withings.SnoringSleep)
+	slp, err := client.GetSleep(adayago, t, 
+								withings.HrSleep,
+								withings.RrSleep, 
+								withings.SnoringSleep)
 	if err != nil {
 		fmt.Println("getSleep Error!")
 		fmt.Println(err)
@@ -240,8 +248,8 @@ func testGetsleep() {
 		stimeUnix := time.Unix(v.Startdate, 0)
 		etimeUnix := time.Unix(v.Enddate, 0)
 
-		stime := (stimeUnix.In(jst)).Format(layout2)
-		etime := (etimeUnix.In(jst)).Format(layout2)
+		stime := (stimeUnix.In(loc)).Format(layout2)
+		etime := (etimeUnix.In(loc)).Format(layout2)
 		message := fmt.Sprintf("%s to %s: %s, Hr:%d, Rr:%d, Snoring:%d \n", stime, etime, st, v.Hr, v.Rr, v.Snoring)
 		fmt.Printf(message)
 	}
@@ -265,8 +273,8 @@ func testGetsleepsummary() {
 		stimeUnix := time.Unix(v.Startdate, 0)
 		etimeUnix := time.Unix(v.Enddate, 0)
 
-		stime := (stimeUnix.In(jst)).Format(layout2)
-		etime := (etimeUnix.In(jst)).Format(layout2)
+		stime := (stimeUnix.In(loc)).Format(layout2)
+		etime := (etimeUnix.In(loc)).Format(layout2)
 		message := fmt.Sprintf(
 			"%s-%s: BDI:%d, duration to deep sleep(sec):%d, duration to sleep(sec):%d, duration to wakeup(sec):%d, HrAverage:%d, Max:%d, Min:%d, WakeupCounts:%d",
 			stime, etime, v.Data.BreathingDisturbancesIntensity, v.Data.Deepsleepduration, v.Data.Durationtosleep, v.Data.Durationtowakeup, v.Data.HrAverage, v.Data.HrMax, v.Data.HrMin, v.Data.Wakeupcount)
@@ -287,6 +295,6 @@ func main() {
 //	testGetmeas()
 	testGetactivity()
 //	testGetworkouts()
-//	testGetsleep()
+	testGetsleep()
 //	testGetsleepsummary()
 }
