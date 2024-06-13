@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"math"
+//	"math"
 	"os"
 	"time"
 
@@ -107,15 +107,7 @@ func printMeas(v withings.MeasureData, name, unit string) {
 func testGetmeas() {
 
 	fmt.Println("========== Getmeas[START] ========== ")
-	mym, err := client.GetMeas(withings.Real, adayago, t, lastupdate, 0, false, true, withings.Weight, 
-																					  withings.Height, 
-																					  withings.FatFreeMass, 
-																					  withings.BoneMass, 
-																					  withings.FatRatio, 
-																					  withings.FatMassWeight, 
-																					  withings.Temp, 
-																					  withings.HeartPulse, 
-																					  withings.Hydration)
+	mym, err := client.GetMeas(withings.Real, adayago, t, lastupdate, 0, false, true, withings.HeartPulse,withings.FatFreeMass,withings.Weight)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -123,32 +115,18 @@ func testGetmeas() {
 
 	fmt.Printf("Status: %d\n", mym.Status)
 
-	for _, v := range mym.SerializedData.Weights {
-		printMeas(v, "Weight", "Kg")
+//	for _, v := range mym.SerializedData.Weights {
+//		printMeas(v, "Weight", "Kg")
+//	}
+	for _, v := range mym.SerializedData.HeartPulses {
+		printMeas(v, "HeartPulses", "bpm")
 	}
-	for _, v := range mym.SerializedData.FatFreeMass {
-		printMeas(v, "FatFreeMass", "Kg")
-	}
-	for _, v := range mym.SerializedData.FatRatios {
-		printMeas(v, "FatRatio", "%%")
-	}
-	for _, v := range mym.SerializedData.FatMassWeights {
-		printMeas(v, "FatMassWeight", "Kg")
-	}
-	for _, v := range mym.SerializedData.BoneMasses {
-		printMeas(v, "BoneMass", "Kg")
-	}
-
-	for _, v := range mym.SerializedData.UnknowVals {
-		printMeas(v, "UnknownVal", "N/A")
-	}
-
 	// Raw data should be provided from mym.Body.Measuregrps
-	for _, v := range mym.Body.Measuregrps {
-		weight := float64(v.Measures[0].Value) * math.Pow10(v.Measures[0].Unit)
-		fmt.Printf("Weight:%.1f Kgs\n", weight)
-	}
-	fmt.Printf("More:%d, Offset:%d\n", mym.Body.More, mym.Body.Offset)
+	//for _, v := range mym.Body.Measuregrps {
+	//	weight := float64(v.Measures[0].Value) * math.Pow10(v.Measures[0].Unit)
+//		fmt.Printf("Weight:%.1f Kgs\n", weight)
+//	}
+//	fmt.Printf("More:%d, Offset:%d\n", mym.Body.More, mym.Body.Offset)
 
 	fmt.Println("========== Getmeas[END] ========== ")
 }
@@ -308,9 +286,9 @@ func main() {
 	tokenFuncs()
 	mainSetup()
 
-//	testGetmeas()
+//	testGetmeas()  // I think this is just for scales
 //	testGetactivity()
 //	testGetworkouts()
-//	testGetsleep()
-	testGetsleepsummary()
+	testGetsleep()
+//	testGetsleepsummary()
 }
