@@ -1,0 +1,461 @@
+---
+title: "withingsAPI"
+output: 
+  github_document:
+    toc: True
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r echo=F}
+library("tidyr")
+library("dplyr")
+
+convert_to_ISOdate <- function(col_name) {
+  if (grepl("\\.\\d{10}$", col_name)) {
+    #extract the datafield name
+    date_field<- sub("\\..*$", "", col_name)
+    # Extract the Unix timestamp from the column name
+    timestamp <- as.numeric(sub(".*\\.", "", col_name))
+    
+    # Convert the Unix timestamp to a human-readable date
+    date <- as.POSIXct(timestamp, origin = "1970-01-01", tz = "")
+    
+    # Create a new column name with the human-readable date
+    new_col_name <- paste0(date_field,".",format(date, format = "%Y%m%d-%H:%M:%S"))
+    
+    return(new_col_name)
+  } else {
+    return(col_name)
+  }
+}
+
+convert_date <- function(date, output_type = c("numeric", "Date"), tz="") {
+
+  output_type <- match.arg(output_type, c("numeric", "Date"))
+
+  # Always convert from character to date
+  if( any(class(date) == "character" )) { date = as.Date(date) }
+
+  if( output_type == "numeric" ) {
+
+    # If to numeric, date --> POSIXct --> numeric
+
+    if( any(class(date) == "Date" )) { date = as.POSIXct(date, tz=tz,
+                                                         origin="1970-01-01") }
+    if( any(class(date) == "POSIXct")) { date = as.numeric(date) }
+
+  } else if( output_type == "Date" ) {
+
+    # If to date, POSIXct --> Date
+
+    if( any(class(date) == "POSIXct")) { date = as.Date(date) }
+
+  }
+
+  return(date)
+}
+
+#process ECG data into a DF
+process_data <- function(out) {
+  if (out$status == 0) {
+    # Generate timestamps
+    start_date <- as.POSIXct(out$body$heart_rate$date, origin = "1970-01-01", tz = "UTC")
+    timestamps <- seq(from = start_date, by = 1/out$body$sampling_frequency, length.out = length(out$body$signal))
+    
+    # Create a dataframe
+    df <- tibble::tibble(
+      Timestamp = timestamps,
+      Value = out$body$signal
+    )
+    return(df)
+  } else {
+    stop("Status is not 0")
+  }
+}
+
+
+```
+
+
+```{r, echo=FALSE}
+
+endpoint<-"https://account.withings.com/oauth2/token"
+client_id<-"be15110fa9ce5d7f43eb15bd76fdf3ee84c6f25e1f7912db8bfa942d4556058a"
+client_secret<-"d79c98c3a693f9e8b5ead8bd134b9b02497a5a2496f945509314f81d45597d6e"
+
+refresh_token<-paste(readLines("refresh_token.txt")) # tao edit path to suit where you are loading/saving this
+
+library(httr)
+url <- 'https://wbsapi.withings.net/v2/oauth2'
+params <- list(
+  action = 'requesttoken',
+  grant_type = 'refresh_token',
+  client_id = client_id,
+  client_secret = client_secret,
+  refresh_token = refresh_token
+)
+
+# Make the POST request - uncomment if you need to refresh the token
+response <- POST(url, body = params, encode = "form")
+token <- httr::content(response, as = "text", encoding = "utf-8")
+token <- jsonlite::fromJSON(token)
+
+access_token<-token$body$access_token
+refresh_token<-token$body$refresh_token
+
+cat(refresh_token,file="refresh_token.txt")
+
+```
+
+
+```{r}
+
+req <- httr::GET("https://wbsapi.withings.net/v2/user?action=getdevice", 
+                 query = list(access_token = access_token))
+
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+devices.df<-out$body$devices
+
+deviceid<-out$body$devices["deviceid"][3,1] # just in case I need to filter by deviceid
+
+
+```
+# SET start date enddate
+
+Set this to three arbitrary days where I know there is data
+```{r}
+
+startdate   <-"2024-02-13" 
+enddate     <-"2024-02-16"
+```
+
+transform the time format of "startdate" in the format required by the different API calls
+```{r}
+## set time variable as unixtime
+UnixStartDate <- startdate %>%  strptime("%Y-%m-%d") %>% as.numeric()
+UnixEndDate <- enddate %>%  strptime("%Y-%m-%d") %>% as.numeric()
+
+## set time variable as timezone
+startdate_tz<-convert_date(startdate, "Date", tz)
+enddate_tz<-convert_date(enddate, "Date", tz)
+
+```
+
+#API CALLS
+
+## getmeas()
+I think this one is pretty useless
+```{r}
+#11	Heart Pulse (bpm) - only for BPM and scale devices
+#123	VO2 max is a numerical measurement of your body’s ability to consume oxygen (ml/min/kg).
+#54	SP02 (%)
+#135	QRS interval duration based on ECG signal
+#136	PR interval duration based on ECG signal
+#137	QT interval duration based on ECG signal
+#138	Corrected QT interval duration based on ECG signal
+
+meastypes<-"11"#,54,123,135,136,136,137,138"
+req <- httr::GET("https://wbsapi.withings.net/measure?action=getmeas",
+             query=list(access_token=access_token,
+                        meastype = meastypes,
+                        category = 1, # 1 for real measures 2 for user objectives
+                        startdate = UnixStartDate,
+                        enddate = UnixEndDate))
+
+
+out <- httr::content(req, as = "text", encoding = "utf-8")
+
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+ if(out$status==0) {
+
+    out$body$updatetime = as.POSIXct(out$body$updatetime, tz="", origin="1970-01-01")
+
+    if( length(out$body$measuregrps) > 1) {
+      out$body$measuregrps <- jsonlite::flatten(out$body$measuregrps)
+      out$body$measuregrps$date <- as.POSIXct(out$body$measuregrps$date, tz="", origin="1970-01-01")
+
+      measures <- dplyr::bind_rows(out$body$measuregrps$measures)
+
+      out$body$measuregrps <- dplyr::select(out$body$measuregrps, -"measures")
+
+      out$body$measuregrps <- dplyr::bind_cols(out$body$measuregrps, measures)
+    }
+  }
+getmeasures.df<-out$body$measuregrps
+
+write.csv(getmeasures.df,"c:/Documents and Settings/d.vitali/Downloads/getmeasures.csv")
+
+
+```
+
+## getactivity()
+
+```{r}
+##
+
+req <- httr::GET("https://wbsapi.withings.net/v2/measure?action=getactivity", 
+                 query = list(access_token = access_token,
+                              startdateymd = startdate_tz, 
+                              enddateymd = enddate_tz,
+                              offset = ""))
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+
+activity.df<-out$body$activities
+
+write.csv(activity.df,"c:/Documents and Settings/d.vitali/Downloads/getactivity.csv")
+
+
+```
+
+
+
+
+
+
+## getintradayactivity()
+
+```{r}
+
+data_fields <-"steps,elevation,calories,distance,duration,heart_rate,spo2_auto"
+
+
+req <- httr::GET("https://wbsapi.withings.net/v2/measure?action=getintradayactivity", 
+                 query = list(access_token = access_token,
+                              startdate = UnixStartDate, 
+                              enddate   = UnixEndDate,
+                              data_fields = data_fields))
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+if (out$status == 0) {
+        out$body$series <- lapply(out$body$series, function(x) x[!sapply(x, 
+            is.null)])
+        out$body$series <- dplyr::bind_rows(out$body$series, 
+            .id = "timestamp")
+        out$body$series$timestamp <- as.POSIXct(as.numeric(out$body$series$timestamp), 
+            tz = "", origin = "1970-01-01")
+    }
+
+intraDayActivity.df<-out$body$series
+
+write.csv(intraDayActivity.df,"c:/Documents and Settings/d.vitali/Downloads/getintraDayActivity.csv")
+
+```
+
+
+## getworkouts()
+```{r}
+
+#lastupdate  <-         #Timestamp for requesting data that were updated or 
+                        #created after this date. Useful for data synchronization 
+                        #between systems. Use this instead of startdateymd + enddateymd.
+
+datafields<-"calories,intensity,manual_distance,manual_calories,hr_average,hr_min,hr_max,hr_zone_0,hr_zone_1,hr_zone_2,hr_zone_3,pause_duration,algo_pause_duration,spo2_average,steps,distance,elevation,pool_laps,strokes,pool_length"
+
+req <- httr::GET("https://wbsapi.withings.net/v2/measure?action=getworkouts", 
+                 query = list(access_token = access_token,
+                              startdateymd = startdate, 
+                              enddateymd   = enddate,
+                              data_fields = datafields))
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+# Flatten the nested data
+workouts.df <- out$body$series %>%
+  unnest(cols = c(data)) %>%
+  mutate(
+    startdate = as.POSIXct(startdate, origin = "1970-01-01"),
+    enddate = as.POSIXct(enddate, origin = "1970-01-01"),
+    modified = as.POSIXct(modified, origin = "1970-01-01")
+  )
+
+write.csv(workouts.df,"c:/Documents and Settings/d.vitali/Downloads/getworkouts.csv")
+
+
+```
+
+# heart v2 list
+Returns a list of ECG records and Afib classification for a given period of time. To get the full ECG signal, use the Heart v2 - Get service.
+
+If the ECG recordings have been taken with BPM Core, systole and diastole measurements will also be returned.
+```{r}
+
+req <- httr::GET("https://wbsapi.withings.net/v2/heart?action=list", 
+                 query = list(access_token = access_token,
+                              startdate = UnixStartDate, 
+                              enddate = UnixEndDate))
+
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+out$body$offset
+
+if (out$status == 0) {
+        out$body$series <- jsonlite::flatten(out$body$series)
+        out$body$series$timestamp <- as.POSIXct(out$body$series$timestamp, 
+            tz = "", origin = "1970-01-01")
+        out$body$series$modified <- as.POSIXct(out$body$series$modified, 
+            tz = "", origin = "1970-01-01")
+        out$body$series <- dplyr::arrange(out$body$series, startdate)
+}
+
+ECGList.DF<-out$body$series
+
+# select the signal id I want to examine
+ecg.signalIDs<-out$body$series$ecg.signalid
+
+write.csv(ECGList.DF,"c:/Documents and Settings/d.vitali/Downloads/ecg.signalIDs.csv")
+
+```
+
+## heart v2 get()
+Provides the high frequency data of an ECG recording in micro-volt (μV).
+
+needs ecg.signalID
+
+
+```{r eval=FALSE}
+
+### signalid is the id of the ECG signal recording from heart() list
+
+req <- httr::GET(url = "https://wbsapi.withings.net/v2/heart", 
+        query = list(access_token = access_token, 
+            action = "get", signalid = ecg.signalIDs))
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+ECGraw.df<-process_data(out)
+
+library(ggplot2)
+ggplot(ECGraw.df, aes(x = Timestamp, y = Value)) +
+  geom_line() +
+  labs(title = "Line Plot of Values Over Time",
+       x = "Timestamp",
+       y = "muV") +
+  theme_minimal()
+
+write.csv(ECGraw.df,"c:/Documents and Settings/d.vitali/Downloads/ecg.track.csv")
+
+```
+
+
+# sleep v2 get
+```{r}
+
+data_fields <-"hr,rr,snoring,sdnn_1,rmssd,mvt_score"
+#data_fields<- ""
+# > hr        : Heart Rate.
+# > rr        : Respiration Rate.
+# > snoring   : Total snoring time
+# > sdnn_1    : Heart rate variability - Standard deviation of the NN over 1 minute
+# > rmssd     : Heart rate variability - Root mean square of the successive 
+#               differences over "a few seconds"
+# > mvt_score : Track the intensity of movement in bed on a minute-by-minute basis. 
+#               Only available for EU devices and devices under prescription.
+
+
+
+
+
+req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=get", 
+                 query = list(access_token = access_token,
+                              startdate = UnixStartDate, 
+                              enddate = UnixEndDate,
+                              data_fields = data_fields))
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+if (out$status == 0) {
+    # Flatten the JSON data
+    sleep.df <- jsonlite::flatten(out$body$series)
+    
+    # Convert startdate and enddate to POSIXct
+    sleep.df$startdate <- as.POSIXct(sleep.df$startdate, tz = "", origin = "1970-01-01")
+    sleep.df$enddate <- as.POSIXct(sleep.df$enddate, tz = "", origin = "1970-01-01")
+    
+    # Arrange by startdate
+    sleep.df <- dplyr::arrange(sleep.df, startdate)
+    
+    # Separate heart rate columns
+    sleep.hr_columns <- grep("^hr\\.", names(sleep.df), value = TRUE)
+    
+    # Gather heart rate data into long format
+    sleep.df <- sleep.df %>%
+        select(startdate, enddate, state, model, all_of(sleep.hr_columns)) %>%
+        gather(key = "timestamp", value = "heart_rate", all_of(sleep.hr_columns)) %>%
+        filter(!is.na(heart_rate))
+    
+    # Convert timestamp to POSIXct
+    sleep.df$timestamp <- as.numeric(sub("hr\\.", "", sleep.df$timestamp))
+    sleep.df$timestamp <- as.POSIXct(sleep.df$timestamp, tz = "", origin = "1970-01-01")
+    
+    # Create the main dataframe without heart rate columns
+    main_df <- sleep.df %>%
+        select(startdate, enddate, state, model)
+}
+
+sleep.df$state<-factor(sleep.df$state,
+                       levels = c(0,1,2,3),
+                       labels = c("Awake","LightSleep","DeepSleep","REM"))
+
+write.csv(sleep.df,"c:/Documents and Settings/d.vitali/Downloads/sleep.csv")
+
+
+```
+
+## sleep v2 summary()
+```{r}
+data_fields <-""
+
+
+req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=getsummary",
+                 query = list(access_token = access_token,
+                              startdateymd = startdate, 
+                              enddateymd = enddate))
+
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+if (out$status == 0) {
+        out$body$series <- jsonlite::flatten(out$body$series)
+        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series <- dplyr::arrange(out$body$series, startdate)
+    }
+
+sleepSum.df<-out$body$series
+
+write.csv(sleepSum.df,"c:/Documents and Settings/d.vitali/Downloads/sleepsum.csv")
+
+
+```
