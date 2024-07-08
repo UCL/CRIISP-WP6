@@ -9,86 +9,39 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 ```{r echo=F}
 library("tidyr")
 library("dplyr")
-
-convert_to_ISOdate <- function(col_name) {
-  if (grepl("\\.\\d{10}$", col_name)) {
-    #extract the datafield name
-    date_field<- sub("\\..*$", "", col_name)
-    # Extract the Unix timestamp from the column name
-    timestamp <- as.numeric(sub(".*\\.", "", col_name))
-    
-    # Convert the Unix timestamp to a human-readable date
-    date <- as.POSIXct(timestamp, origin = "1970-01-01", tz = "")
-    
-    # Create a new column name with the human-readable date
-    new_col_name <- paste0(date_field,".",format(date, format = "%Y%m%d-%H:%M:%S"))
-    
-    return(new_col_name)
-  } else {
-    return(col_name)
-  }
-}
-
-convert_date <- function(date, output_type = c("numeric", "Date"), tz="") {
-
-  output_type <- match.arg(output_type, c("numeric", "Date"))
-
-  # Always convert from character to date
-  if( any(class(date) == "character" )) { date = as.Date(date) }
-
-  if( output_type == "numeric" ) {
-
-    # If to numeric, date --> POSIXct --> numeric
-
-    if( any(class(date) == "Date" )) { date = as.POSIXct(date, tz=tz,
-                                                         origin="1970-01-01") }
-    if( any(class(date) == "POSIXct")) { date = as.numeric(date) }
-
-  } else if( output_type == "Date" ) {
-
-    # If to date, POSIXct --> Date
-
-    if( any(class(date) == "POSIXct")) { date = as.Date(date) }
-
-  }
-
-  return(date)
-}
-
-#process ECG data into a DF
-process_data <- function(out) {
-  if (out$status == 0) {
-    # Generate timestamps
-    start_date <- as.POSIXct(out$body$heart_rate$date, origin = "1970-01-01", tz = "UTC")
-    timestamps <- seq(from = start_date, by = 1/out$body$sampling_frequency, length.out = length(out$body$signal))
-    
-    # Create a dataframe
-    df <- tibble::tibble(
-      Timestamp = timestamps,
-      Value = out$body$signal
-    )
-    return(df)
-  } else {
-    stop("Status is not 0")
-  }
-}
-
-
+library("httr")
+library("jsonlite")
 ```
 
-
-# Define Participant ID
-
 ```{r}
-#set credentials for this participant
-Participant_id<-"credentials/P_00"
-  
+APIendpoint<-"https://wbsapi.withings.net"
+AccessURL<-"https://account.withings.com/oauth2/token"
+AuthURL <- "https://account.withings.com/oauth2_user/authorize2"
+TokenURL<- "https://wbsapi.withings.net/v2/oauth2"
+CallBackURL<-"http://localhost:1410/"
 ```
 
 set working directory
 ```{r, echo=FALSE}
 setwd("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/")
 ```
+
+
+# Load Necessary functions
+```{r}
+
+source("withings_func.R")
+# this should read client_id client_secret refresh_token as environment variables
+```
+
+# Define Participant ID
+
+```{r}
+#set credentials for this participant
+Participant_id<-"credentials/P_01.conf"
+  
+```
+
 
 # Load Credentials
 ```{r}
@@ -98,46 +51,24 @@ source(Participant_id)
 ```
 
 
+
 # API setup
+
+LOGOUT of ANY PREVIOUS 
+
 ```{r}
+# Main logic to check if refresh_token is empty and handle accordingly
+if (refresh_token == "") {
+  cat("refresh_token is empty. Requesting new tokens.\n")
+  tokens <- request_new_tokens()
+} else {
+  cat("refresh_token found. Refreshing existing token.\n")
+  tokens <- refresh_existing_token(refresh_token)
+}
 
-endpoint<-"https://account.withings.com/oauth2/token"
-
-library(httr)
-url <- 'https://wbsapi.withings.net/v2/oauth2'
-params <- list(
-  action = 'requesttoken',
-  grant_type = 'refresh_token',
-  client_id = client_id,
-  client_secret = client_secret,
-  refresh_token = refresh_token
-)
-```
-
-# Refresh Token Call
-```{r}
-
-# Make the POST request - uncomment if you need to refresh the token
-response <- POST(url, body = params, encode = "form")
-token <- httr::content(response, as = "text", encoding = "utf-8")
-token <- jsonlite::fromJSON(token)
-
-access_token<-token$body$access_token
-refresh_token<-token$body$refresh_token
-```
-
-# Update token in configuration file
-```{r}
-# Read the content of the config file
-credentials<-readLines(Participant_id)
-
-# Find the line that contains 'refresh_token'
-line_index <- grep("refresh_token", credentials)
-
-credentials[line_index] <- paste0('refresh_token <- "', refresh_token, '"')
-
-# Write the updated credentials to config.r 
-writeLines(credentials, Participant_id)
+# Access tokens can now be used for further API calls
+access_token <- tokens$access_token
+refresh_token <- tokens$refresh_token
 
 ```
 
@@ -155,7 +86,7 @@ out$status
 
 devices.df<-out$body$devices
 
-deviceid<-out$body$devices["deviceid"][3,1] # just in case I need to filter by deviceid
+deviceid<-out$body$devices$deviceid[1] # just in case I need to filter by deviceid
 
 
 ```
@@ -164,15 +95,18 @@ deviceid<-out$body$devices["deviceid"][3,1] # just in case I need to filter by d
 Set this to three arbitrary days where I know there is data
 ```{r}
 
-startdate   <-"2024-02-13" 
-enddate     <-"2024-02-16"
+startdate   <-"2024-07-08" 
+enddate     <-"2024-07-08"
 ```
 
 transform the time format of "startdate" in the format required by the different API calls
 ```{r}
 ## set time variable as unixtime
-UnixStartDate <- startdate %>%  strptime("%Y-%m-%d") %>% as.numeric()
-UnixEndDate <- enddate %>%  strptime("%Y-%m-%d") %>% as.numeric()
+UnixStartDate <- as.POSIXct(paste(startdate, "00:00:00"), format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+UnixStartDate<- as.numeric(unclass(UnixStartDate))
+
+UnixEndDate <- as.POSIXct(paste(enddate, "23:59:59"), format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+UnixEndDate <- as.numeric(unclass(UnixEndDate))
 
 ## set time variable as timezone
 startdate_tz<-convert_date(startdate, "Date", tz)
@@ -225,7 +159,7 @@ out$status
   }
 getmeasures.df<-out$body$measuregrps
 
-write.csv(getmeasures.df,"c:/Documents and Settings/d.vitali/Downloads/getmeasures.csv")
+#write.csv(getmeasures.df,"c:/Documents and Settings/d.vitali/Downloads/getmeasures.csv")
 
 
 ```
@@ -249,7 +183,7 @@ out$status
 
 activity.df<-out$body$activities
 
-write.csv(activity.df,"c:/Documents and Settings/d.vitali/Downloads/getactivity.csv")
+#write.csv(activity.df,"c:/Documents and Settings/d.vitali/Downloads/getactivity.csv")
 
 
 ```
@@ -287,7 +221,7 @@ if (out$status == 0) {
 
 intraDayActivity.df<-out$body$series
 
-write.csv(intraDayActivity.df,"c:/Documents and Settings/d.vitali/Downloads/getintraDayActivity.csv")
+#write.csv(intraDayActivity.df,"c:/Documents and Settings/d.vitali/Downloads/getintraDayActivity.csv")
 
 ```
 
@@ -320,7 +254,7 @@ workouts.df <- out$body$series %>%
     modified = as.POSIXct(modified, origin = "1970-01-01")
   )
 
-write.csv(workouts.df,"c:/Documents and Settings/d.vitali/Downloads/getworkouts.csv")
+#write.csv(workouts.df,"c:/Documents and Settings/d.vitali/Downloads/getworkouts.csv")
 
 
 ```
@@ -355,10 +289,10 @@ if (out$status == 0) {
 
 ECGList.DF<-out$body$series
 
-# select the signal id I want to examine
-ecg.signalIDs<-out$body$series$ecg.signalid
+# select the signal id I want to examine from the ECGList.DF
+ecg.signalID<-out$body$series$ecg.signalid[1]
 
-write.csv(ECGList.DF,"c:/Documents and Settings/d.vitali/Downloads/ecg.signalIDs.csv")
+#write.csv(ECGList.DF,"c:/Documents and Settings/d.vitali/Downloads/ecg.signalIDs.csv")
 
 ```
 
@@ -374,7 +308,7 @@ needs ecg.signalID
 
 req <- httr::GET(url = "https://wbsapi.withings.net/v2/heart", 
         query = list(access_token = access_token, 
-            action = "get", signalid = ecg.signalIDs))
+            action = "get", signalid = ecg.signalID))
 httr::stop_for_status(req)
 out <- httr::content(req, as = "text", encoding = "utf-8")
 out <- jsonlite::fromJSON(out)
@@ -391,7 +325,7 @@ ggplot(ECGraw.df, aes(x = Timestamp, y = Value)) +
        y = "muV") +
   theme_minimal()
 
-write.csv(ECGraw.df,"c:/Documents and Settings/d.vitali/Downloads/ecg.track.csv")
+#write.csv(ECGraw.df,"c:/Documents and Settings/d.vitali/Downloads/ecg.track.csv")
 
 ```
 
@@ -458,7 +392,7 @@ sleep.df$state<-factor(sleep.df$state,
                        levels = c(0,1,2,3),
                        labels = c("Awake","LightSleep","DeepSleep","REM"))
 
-write.csv(sleep.df,"c:/Documents and Settings/d.vitali/Downloads/sleep.csv")
+#write.csv(sleep.df,"c:/Documents and Settings/d.vitali/Downloads/sleep.csv")
 
 
 ```
@@ -489,7 +423,7 @@ if (out$status == 0) {
 
 sleepSum.df<-out$body$series
 
-write.csv(sleepSum.df,"c:/Documents and Settings/d.vitali/Downloads/sleepsum.csv")
+#write.csv(sleepSum.df,"c:/Documents and Settings/d.vitali/Downloads/sleepsum.csv")
 
 
 ```
