@@ -12,6 +12,5 @@ __pycache__/
 .settings.yaml
 access_token.json
 auth_ok
-credentials/
-
+*.conf
 
