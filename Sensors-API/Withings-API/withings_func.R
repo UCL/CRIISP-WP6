@@ -1,45 +1,45 @@
 
 # Function to request a new authorization code and exchange it for tokens
 request_new_tokens <- function() {
-  auth_url <- ""
-  scopes <- "user.metrics,user.info,user.activity"
+    auth_url <- ""
+    scopes <- "user.metrics,user.info,user.activity"
+    
+    auth_url <- paste0(
+      "https://account.withings.com/oauth2_user/authorize2?",
+      "response_type=code",
+      "&client_id=", client_id,
+      "&scope=", URLencode(scopes),
+      "&redirect_uri=", URLencode(CallBackURL),
+      "&state=", "asdf1234"
+    )
+    
+    browseURL(auth_url)
   
-  auth_url <- paste0(
-    "https://account.withings.com/oauth2_user/authorize2?",
-    "response_type=code",
-    "&client_id=", client_id,
-    "&scope=", URLencode(scopes),
-    "&redirect_uri=", URLencode(CallBackURL),
-    "&state=", "asdf1234"
-  )
+    authCode <- readline(prompt = "Enter the authorization code from the redirect URL: ")
   
-  browseURL(auth_url)
+    paramsRet <- list(
+      action = 'requesttoken',
+      grant_type = 'authorization_code',
+      client_id = client_id,
+      client_secret = client_secret,
+      code = authCode,
+      redirect_uri = CallBackURL
+    )
   
-  authCode <- readline(prompt = "Enter the authorization code from the redirect URL: ")
+    response <- POST(TokenURL, body = paramsRet, encode = "form")
+    tokens <- httr::content(response, as = "parsed", type = "application/json")
   
-  paramsRet <- list(
-    action = 'requesttoken',
-    grant_type = 'authorization_code',
-    client_id = client_id,
-    client_secret = client_secret,
-    code = authCode,
-    redirect_uri = CallBackURL
-  )
+    access_token<-tokens$body$access_token
+    refresh_token<-tokens$body$refresh_token
   
-  response <- POST(TokenURL, body = paramsRet, encode = "form")
-  tokens <- httr::content(response, as = "parsed", type = "application/json")
-  
-  access_token<-tokens$body$access_token
-  refresh_token<-tokens$body$refresh_token
-  
-  # Save new tokens back to the configuration file
-  writeLines(c(
-    paste0('client_id <- "', client_id, '"'),
-    paste0('client_secret <- "', client_secret, '"'),
-    paste0('refresh_token <- "', refresh_token, '"')
-  ), Participant_id)
-  
-  return(list(access_token = access_token, refresh_token = refresh_token))
+    # Save new tokens back to the configuration file
+    writeLines(c(
+      paste0('client_id <- "', client_id, '"'),
+      paste0('client_secret <- "', client_secret, '"'),
+      paste0('refresh_token <- "', refresh_token, '"')
+    ), Participant_id)
+    
+    return(list(access_token = access_token, refresh_token = refresh_token))
 }
 
 # Function to refresh the existing token
