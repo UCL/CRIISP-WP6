@@ -29,9 +29,9 @@ setwd("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/")
 
 # Load Necessary functions
 ```{r}
-
+# this should read withings_func.R which contains a set of functions required in the pipeline
 source("withings_func.R")
-# this should read client_id client_secret refresh_token as environment variables
+
 ```
 
 # Define Participant ID
@@ -47,14 +47,13 @@ Participant_id<-"credentials/P_01.conf"
 ```{r}
 
 source(Participant_id)
-# this should read client_id client_secret refresh_token as environment variables
+# this should read client_id, client_secret, and refresh_token as environment variables
 ```
-
 
 
 # API setup
 
-LOGOUT of ANY PREVIOUS 
+LOGIN as this participant: 
 
 ```{r}
 # Main logic to check if refresh_token is empty and handle accordingly
