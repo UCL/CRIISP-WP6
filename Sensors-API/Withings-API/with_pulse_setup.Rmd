@@ -103,8 +103,8 @@ deviceid<-out$body$devices$deviceid[1] # just in case I need to filter by device
 Set this to three arbitrary days where I know there is data
 ```{r}
 
-startdate   <-"2024-07-08" 
-enddate     <-"2024-07-08"
+startdate   <-as.POSIXct(devices.df$first_session_date, origin="1970-01-01") %>% format("%Y-%m-%d")
+enddate     <-as.POSIXct(devices.df$last_session_date, origin="1970-01-01") %>% format("%Y-%m-%d")
 ```
 
 transform the time format of "startdate" in the format required by the different API calls
@@ -298,7 +298,7 @@ if (out$status == 0) {
 ECGList.DF<-out$body$series
 
 # select the signal id I want to examine from the ECGList.DF
-ecg.signalID<-out$body$series$ecg.signalid[1]
+ecg.signalID<-ECGList.DF$ecg.signalid[3]
 
 #write.csv(ECGList.DF,"c:/Documents and Settings/d.vitali/Downloads/ecg.signalIDs.csv")
 
