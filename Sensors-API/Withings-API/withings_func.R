@@ -118,7 +118,7 @@ process_data <- function(out) {
   if (out$status == 0) {
     # Generate timestamps
     start_date <- as.POSIXct(out$body$heart_rate$date, origin = "1970-01-01", tz = "UTC")
-    timestamps <- seq(from = start_date, by = 1/out$body$sampling_frequency, length.out = length(out$body$signal))
+    timestamps <- seq(from = 0, by = 1/out$body$sampling_frequency, length.out = length(out$body$signal))
     
     # Create a dataframe
     df <- tibble::tibble(
