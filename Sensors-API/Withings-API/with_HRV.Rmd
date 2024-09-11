@@ -1,0 +1,46 @@
+---
+  title: "HRV"
+output: 
+  github_document:
+  toc: True
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+  
+  
+```{r echo=F}
+library("tidyr")
+library("dplyr")
+library("httr")
+library("jsonlite")
+```
+
+## heart rate Variability
+
+### RR peak detection
+
+Fast implementation of Pan & Tompkins (1985) (PT algorithm).
+
+The PT algorithm consists of 5 processes: 
+  
+  1 band-pass filter (BPF)
+-> 2 derivative
+-> 3 squaring
+-> 4 moving window integration (MWI)
+-> 5 R-peak detection
+
+https://github.com/vankesteren/rpeaks
+
+```
+
+
+To calculate Heart Rate Variability (HRV) from ECG data in R, we use "RHRV" package.
+```{r}
+
+library(RHRV)
+
+hrv.data <- CreateHRVData()
+hrv.data <- SetVerbose(hrv.data, TRUE)
+hrv.data <- LoadBeatVector(hrv.data, datetime = ECGraw.date, beatPositions = ECGraw.df$Timestamp, scale = 1)
+
+
+```
