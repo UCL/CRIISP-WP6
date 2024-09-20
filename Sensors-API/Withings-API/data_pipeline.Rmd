@@ -1,0 +1,306 @@
+---
+title: "withingsAPI"
+output: 
+  github_document:
+    toc: True
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r echo=F}
+library("tidyr")
+library("dplyr")
+library("httr")
+library("jsonlite")
+```
+
+```{r}
+APIendpoint<-"https://wbsapi.withings.net"
+AccessURL<-"https://account.withings.com/oauth2/token"
+AuthURL <- "https://account.withings.com/oauth2_user/authorize2"
+TokenURL<- "https://wbsapi.withings.net/v2/oauth2"
+CallBackURL<-"http://localhost:1410/"
+```
+
+set working directory
+```{r, echo=FALSE}
+setwd("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/")
+```
+
+
+# Load Necessary functions
+```{r}
+# this should read withings_func.R which contains a set of functions required in the pipeline
+source("withings_func.R")
+
+```
+
+# Define Participant ID
+
+```{r}
+#set credentials for this participant
+Participant_id<-"credentials/P_04.conf"
+  
+```
+
+
+# Load Credentials
+```{r}
+
+source(Participant_id)
+# this should read client_id, client_secret, and refresh_token as environment variables
+```
+
+
+# API setup
+
+The browser will now open the participant details recorded on Withings 
+(you may need to log in).
+
+Please check that you are logged in as the participant for which you 
+want to get API authorization codes.
+ 
+
+```{r}
+#   browseURL("https://www.withings.com/uk/en/account/profil")
+```
+
+```{r}
+# Main logic to check if refresh_token is empty and handle accordingly
+if (refresh_token == "") {
+  cat("refresh_token is empty. Request a new token \n")
+} else {
+  cat("refresh_token found. Refreshing existing token.\n")
+  tokens <- refresh_existing_token(refresh_token)
+}
+```
+
+```{r}
+
+# tokens <- request_new_tokens()
+```
+
+
+```{r}
+# Access tokens can now be used for further API calls
+access_token <- tokens$access_token
+refresh_token <- tokens$refresh_token
+
+```
+
+
+```{r}
+
+req <- httr::GET("https://wbsapi.withings.net/v2/user?action=getdevice", 
+                 query = list(access_token = access_token))
+
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+devices.df<-out$body$devices
+
+devices.df$first_session_date <- as.POSIXct(devices.df$first_session_date, origin="1970-01-01") %>% format("%Y-%m-%d %H:%M:%S")
+devices.df$last_session_date <- as.POSIXct(devices.df$last_session_date, origin="1970-01-01") %>% format("%Y-%m-%d %H:%M:%S")
+
+deviceid<-out$body$devices$deviceid[1] # just in case I need to filter by deviceid
+
+
+```
+# SET start date enddate
+
+Set this to three arbitrary days where I know there is data
+```{r}
+
+startdate   <-as.POSIXct(devices.df$first_session_date, origin="1970-01-01") %>% format("%Y-%m-%d")
+enddate     <-as.POSIXct(devices.df$last_session_date, origin="1970-01-01") %>% format("%Y-%m-%d")
+```
+
+transform the time format of "startdate" in the format required by the different API calls
+```{r}
+## set time variable as unixtime
+UnixStartDate <- as.POSIXct(paste(startdate, "00:00:00"), format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+UnixStartDate<- as.numeric(unclass(UnixStartDate))
+
+UnixEndDate <- as.POSIXct(paste(enddate, "23:59:59"), format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+UnixEndDate <- as.numeric(unclass(UnixEndDate))
+
+## set time variable as timezone
+startdate_tz<-convert_date(startdate, "Date", tz)
+enddate_tz<-convert_date(enddate, "Date", tz)
+
+```
+
+#API CALLS
+
+## getactivity()
+
+```{r}
+##
+
+req <- httr::GET("https://wbsapi.withings.net/v2/measure?action=getactivity", 
+                 query = list(access_token = access_token,
+                              startdateymd = startdate_tz, 
+                              enddateymd = enddate_tz,
+                              offset = ""))
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+
+activity.df<-out$body$activities
+
+#write.csv(activity.df,"c:/Documents and Settings/d.vitali/Downloads/getactivity.csv")
+
+
+```
+
+
+
+
+
+
+## getintradayactivity()
+
+```{r}
+
+data_fields <-"steps,elevation,calories,distance,duration,heart_rate,spo2_auto"
+
+# Fetch the intraday activity data for the time period
+intra_day_activity_data <- fetch_ALL_intraday_activity(startdate, enddate, access_token, data_fields)
+
+
+```
+
+
+# heart v2 list
+Returns a list of ECG records and Afib classification for a given period of time. To get the full ECG signal, use the Heart v2 - Get service.
+
+```{r}
+
+req <- httr::GET("https://wbsapi.withings.net/v2/heart?action=list", 
+                 query = list(access_token = access_token,
+                              startdate = UnixStartDate, 
+                              enddate = UnixEndDate))
+
+httr::stop_for_status(req)
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+out$body$offset
+
+if (out$status == 0) {
+        out$body$series <- jsonlite::flatten(out$body$series)
+        out$body$series$timestamp <- as.POSIXct(out$body$series$timestamp, 
+            tz = "", origin = "1970-01-01")
+        out$body$series$modified <- as.POSIXct(out$body$series$modified, 
+            tz = "", origin = "1970-01-01")
+        out$body$series <- dplyr::arrange(out$body$series, startdate)
+}
+
+ECGList.DF<-out$body$series
+
+# select the signal ids I want to examine from the ECGList.DF
+ecg.signalIDs<-ECGList.DF$ecg.signalid
+
+#write.csv(ECGList.DF,"c:/Documents and Settings/d.vitali/Downloads/ecg.signalIDs.csv")
+
+```
+
+## heart v2 get()
+Provides the high frequency data of an ECG recording in micro-volt (μV).
+
+needs ecg.signalID
+
+
+```{r eval=FALSE}
+
+# Fetch ECG data for all signal IDs
+ecg_data_list <- fetch_ecg_signals(ecg.signalIDs, access_token)
+
+
+library(ggplot2)
+
+for (i in seq_along(ecg_data_list)) {
+  # Get the current ECG dataframe
+  ecg_df <- ecg_data_list[[i]]
+  
+  # Create and display the plot
+  plot <- ggplot(ecg_df, aes(x = Timestamp, y = Value)) +
+    geom_line() +
+    labs(title = paste("ECG Signal for Signal ID", ecg.signalIDs[i]),
+         x = "Timestamp (ms)",
+         y = "muV") +
+    theme_minimal()
+  
+  # Display the plot
+  print(plot)
+}
+
+
+
+```
+
+# sleep v2 get
+```{r}
+
+data_fields <-"hr,rr,snoring,sdnn_1,rmssd,mvt_score"
+#data_fields<- ""
+# > hr        : Heart Rate.
+# > rr        : Respiration Rate.
+# > snoring   : Total snoring time
+# > sdnn_1    : Heart rate variability - Standard deviation of the NN over 1 minute
+# > rmssd     : Heart rate variability - Root mean square of the successive 
+#               differences over "a few seconds"
+# > mvt_score : Track the intensity of movement in bed on a minute-by-minute basis. 
+#               Only available for EU devices and devices under prescription.
+
+
+startdate
+enddate
+
+
+# Fetch the sleep data for the week
+All_sleep_data <- fetch_ALL_sleep_data(startdate, enddate, access_token, data_fields)
+
+#write.csv(sleep.df,"c:/Documents and Settings/d.vitali/Downloads/sleep.csv")
+
+
+```
+
+## sleep v2 summary()
+```{r}
+data_fields <-"hr_average,hr_max,hr_min,lightsleepduration,wakeupcount"
+
+
+req <- httr::GET("https://wbsapi.withings.net/v2/sleep?action=getsummary",
+                 query = list(access_token = access_token,
+                              startdateymd = startdate, 
+                              enddateymd = enddate,
+                              data_fields = data_fields))
+
+out <- httr::content(req, as = "text", encoding = "utf-8")
+out <- jsonlite::fromJSON(out)
+
+out$status
+
+if (out$status == 0) {
+        out$body$series <- jsonlite::flatten(out$body$series)
+        out$body$series$startdate <- as.POSIXct(out$body$series$startdate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series$enddate <- as.POSIXct(out$body$series$enddate, 
+            tz = "", origin = "1970-01-01")
+        out$body$series <- dplyr::arrange(out$body$series, startdate)
+    }
+
+sleepSum.df<-out$body$series
+
+#write.csv(sleepSum.df,"c:/Documents and Settings/d.vitali/Downloads/sleepsum.csv")
+
+
+```
