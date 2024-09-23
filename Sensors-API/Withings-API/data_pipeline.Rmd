@@ -38,7 +38,7 @@ source("withings_func.R")
 
 ```{r}
 #set credentials for this participant
-Participant_id<-"credentials/P_04.conf"
+Participant_id<-"credentials/P_01.conf"
   
 ```
 
@@ -138,11 +138,13 @@ enddate_tz<-convert_date(enddate, "Date", tz)
 
 ```{r}
 ##
+data_fields <-"steps,distance,elevation,soft,moderate,intense,active,calories,hr_average,hr_min,hr_max,hr_zone_0,hr_zone_1,hr_zone_2,hr_zone_3"
 
 req <- httr::GET("https://wbsapi.withings.net/v2/measure?action=getactivity", 
                  query = list(access_token = access_token,
                               startdateymd = startdate_tz, 
                               enddateymd = enddate_tz,
+                              data_fields = data_fields,
                               offset = ""))
 httr::stop_for_status(req)
 out <- httr::content(req, as = "text", encoding = "utf-8")
@@ -165,6 +167,7 @@ activity.df<-out$body$activities
 
 ## getintradayactivity()
 
+
 ```{r}
 
 data_fields <-"steps,elevation,calories,distance,duration,heart_rate,spo2_auto"
@@ -175,6 +178,39 @@ intra_day_activity_data <- fetch_ALL_intraday_activity(startdate, enddate, acces
 
 ```
 
+### HR and general movement data
+```{r}
+
+library(lubridate)
+
+binned_data <- intra_day_activity_data %>%
+  mutate(bin_min = floor_date(timestamp, "5 minutes")) %>%
+  group_by(bin_min) %>%
+  summarise(heart_rate = mean(heart_rate, na.rm = TRUE),   # Average heart rate in each 10-minute bin
+            steps = sum(steps, na.rm = TRUE))              # Sum steps in each 10-minute bin
+
+
+ggplot(binned_data, aes(x = bin_min)) +
+  
+  # point plot for heart rate
+  geom_point(aes(y = heart_rate, color = "Heart Rate"), size = 1) +
+  
+  # Bar plot for steps
+  geom_bar(aes(y = steps, fill = "Steps"), stat = "identity", alpha = 0.6, position = "dodge") +
+  
+  scale_y_continuous(name = "Heart Rate (bpm)",
+                     sec.axis = sec_axis(~., name = "Steps")) + 
+  labs(title = "Heart Rate and Steps (Binned in x-Minute Intervals)",
+       x = "Time",
+       y = "Heart Rate (bpm)",
+       color = "Metrics") +
+  facet_wrap(~ as.Date(bin_min), scales = "free_x") +
+  theme_minimal() +
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "1 hour") +  # Adjust time format and breaks
+  scale_color_manual(values = c("Heart Rate" = "blue")) +
+  scale_fill_manual(values = c("Steps" = "darkgreen"))
+
+```
 
 # heart v2 list
 Returns a list of ECG records and Afib classification for a given period of time. To get the full ECG signal, use the Heart v2 - Get service.

@@ -12,11 +12,14 @@ library("tidyr")
 library("dplyr")
 library("httr")
 library("jsonlite")
+library(ggplot2)
+library("reticulate")
+
 ```
 
 ## heart rate Variability
 
-### RR peak detection
+### RR peak detection with PT algorithm
 
 Fast implementation of Pan & Tompkins (1985) (PT algorithm).
 
@@ -38,25 +41,56 @@ ECGraw.df<-ecg_data_list[[3]]
 ecg_dat <- ECGraw.df$Value
 ecg_sec <- (0:(length(ECGraw.df$Value) - 1)) / 300 # rel. time in seconds
 r_peaks <- rpeaks_pan_tompkins(ecg = ecg_dat, sample_rate = 300)
+```
 
-#remotes::install_github("boupetch/rsleep")
-library(rsleep)
+#### RR detection with WFDB
 
-peaks <- detect_rpeaks(ecg_dat, sRate = 300)
-ecg.df <- data.frame(ECG = ecg_dat,Seconds = c(0:(length(ecg_dat)-1)/300))
-ggplot(ecg.df,aes(x = Seconds,y = ECG)) +
-  geom_line() + theme_bw() +
-  geom_vline(data.frame(p = peaks),mapping = aes(xintercept = p), linetype="dashed",color = "red")+
-  geom_vline(data.frame(p = r_peaks),mapping = aes(xintercept = p), linetype="dashed",color = "blue")
+[The WaveFormDataBase (WFDB) Python Package](https://physionet.org/content/wfdb-python/4.1.0/)
+
+Xie, C., McCullum, L., Johnson, A., Pollard, T., Gow, B., & Moody, B. (2023). Waveform Database Software Package (WFDB) for Python (version 4.1.0). PhysioNet. https://doi.org/10.13026/9njx-6322.
 
 
-# Add the raw ECG signal to the HRVData structure
-HRVData$ECG <- ecg.df$ECG  
+```{r}
+library("reticulate")
 
-# Now apply an R-peak detection algorithm (this is a placeholder)
-HRVData <- DetectRPeaks(HRVData, method = "Wavelet")  # Example method for R-peak detection
+reticulate::install_python(version = "3.10:latest", optimized = TRUE)
+
+#py_install("wfdb")
+
 
 ```
+
+
+```{python}
+repl_python()
+import wfdb.processing # https://wfdb.readthedocs.io/en/latest/processing.html
+
+
+ecg_df=r.ecg_df
+ecg_signal=ecgDF["ECG"]
+
+rpeaks = wfdb.processing.xqrs_detect(ecg_signal, fs=300, verbose=True)
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(10, 4))
+plt.plot(ecg_signal, label="ECG Signal")
+plt.plot(rpeaks, ecg_signal[rpeaks], "ro", label="R-peaks")
+plt.xlabel("Time (s)")
+plt.ylabel("ECG (mV)")
+plt.legend()
+
+# Show the plot in RStudio
+plt.show()
+
+```
+
+
+```{r}
+pypeaks<-py$rpeaks/300
+
+```
+
 
 # short term HRV
 
@@ -88,7 +122,7 @@ the program, we can activate a verbose mode using the SetVerbose function.
 
 ECGdatetime<-ECGraw.df$start_date[1] %>% format("%d/%m/%Y %H:%M:%S")
   
-hrv.data <- LoadBeatVector(hrv.data, datetime = ECGdatetime, beatPositions = peaks, scale = 1)
+hrv.data <- LoadBeatVector(hrv.data, datetime = ECGdatetime, beatPositions = pypeaks, scale = 1)
 
 ```
 
@@ -224,11 +258,11 @@ not specify it, the program selects a proper length for the calculations.
 
 ```{r}
 
-hrv.data = CalculatePowerBand(hrv.data , type = "fourier", indexFreqAnalysis= 1, size = 10, shift = 5 )
-PlotPowerBand(hrv.data, indexFreqAnalysis = 1)
+hrv.data = CalculatePowerBand(hrv.data , type = "fourier", indexFreqAnalysis= 1, size = 10, shift = 2 )
+PlotPowerBand(hrv.data, indexFreqAnalysis = 1, hr = T, )
 
 
-spectrogram = CalculateSpectrogram( hrv.data ,size = 10, shift = 5, sizesp = 2048)
-spectrogram = PlotSpectrogram(hrv.data, size=10, shift=5,  sizesp=2048)
+spectrogram = CalculateSpectrogram( hrv.data ,size = 10, shift = 2, sizesp = 2048)
+spectrogram = PlotSpectrogram(hrv.data, size=10, shift=2, freqRange = c(0,0.5))
 
 ```

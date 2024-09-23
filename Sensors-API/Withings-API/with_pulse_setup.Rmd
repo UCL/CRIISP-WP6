@@ -135,7 +135,7 @@ I think this one is pretty useless
 #137	QT interval duration based on ECG signal
 #138	Corrected QT interval duration based on ECG signal
 
-meastypes<-"11"#,54,123,135,136,136,137,138"
+meastypes<-"73"#,73,54,123,135,136,136,137,138"
 req <- httr::GET("https://wbsapi.withings.net/measure?action=getmeas",
              query=list(access_token=access_token,
                         meastype = meastypes,
