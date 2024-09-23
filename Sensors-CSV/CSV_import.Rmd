@@ -1,0 +1,167 @@
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(stringr)
+```
+
+
+```{r}
+# Sample data
+elevation_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/raw_elevation_Elevation.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+elevation_csv$start <- ymd_hms(elevation_csv$start,  tz = "UTC")
+
+
+elevation_data<-expand_csv_data(elevation_csv)
+```
+
+```{r}
+# Sample data
+steps_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/raw_tracker_steps.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+steps_csv$start <- ymd_hms(steps_csv$start,  tz = "UTC")
+
+steps_data<-expand_csv_data(steps_csv)
+
+```
+
+```{r}
+# Sample data
+temperature_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/raw_core_body_temperature_Core body temperature.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+temperature_csv$start <- ymd_hms(temperature_csv$start,  tz = "UTC")
+
+temperature_data<-expand_csv_data(temperature_csv)
+
+```
+
+```{r}
+# Sample data
+HR_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/raw_hr_hr.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+HR_csv$start <- ymd_hms(HR_csv$start,  tz = "UTC")
+
+HR_data<-expand_csv_data(HR_csv)
+
+```
+
+```{r}
+# Sample data
+activity_intensity_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/raw_tracker_Activity Intensity.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+activity_intensity_csv$start <- ymd_hms(activity_intensity_csv$start,  tz = "UTC")
+
+activity_intensity_data<-expand_csv_data(activity_intensity_csv)
+
+```
+
+```{r}
+# Sample data
+sleepstate_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/raw_tracker_sleep-state.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+sleepstate_csv$start <- ymd_hms(sleepstate_csv$start,  tz = "UTC")
+
+sleepstate_data<-expand_csv_data(sleepstate_csv)
+
+```
+
+```{r}
+# Sample data
+sleepsummary_data <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/sleep.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+sleepsummary_data$from <- ymd_hms(sleepsummary_data$from,  tz = "UTC")
+sleepsummary_data$to <- ymd_hms(sleepsummary_data$to,  tz = "UTC")
+
+
+```
+
+```{r}
+# Sample data
+ECG_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/signal.csv", header = TRUE, sep = ",")
+
+# Convert date column to datetime
+ECG_csv$date <- ymd_hms(ECG_csv$date,  tz = "UTC")
+
+```
+
+```{r}
+# Sample data
+distance_csv <- read.csv(file = "C:/Users/d.vitali/Downloads/data_JAA_1727098304/raw_tracker_distance.csv", header = TRUE, sep = ",")
+
+# Convert start column to datetime
+distance_csv$start <- ymd_hms(distance_csv$start,  tz = "UTC")
+
+distance_data<-expand_csv_data(distance_csv)
+
+```
+
+
+# merge df
+```{r}
+
+act_data <- full_join(steps_data, activity_intensity_data, by = "timestamp")
+
+colnames(act_data)<-c("timestamp","steps","activity_int")
+
+act_data <- full_join(act_data, temperature_data, by = "timestamp")
+
+colnames(act_data)<-c("timestamp","steps","activity_int","temperature")
+
+act_data <- full_join(act_data, HR_data, by = "timestamp")
+
+colnames(act_data)<-c("timestamp","steps","activity_int","temperature","hr")
+
+
+```
+
+
+
+
+```{r}
+
+plot_data<- act_data%>%
+  filter(timestamp < as.POSIXct("2024-09-13"))
+
+
+# Reshape the data for faceting
+act_data_long <- plot_data %>%
+  pivot_longer(cols = c(activity_int, temperature, hr),
+               names_to = "metric",
+               values_to = "value")
+
+# Create the plot with facets
+ggplot(act_data_long, aes(x = timestamp, y = value)) +
+  
+  # Use different geom for steps and lines for temperature and heart rate
+  geom_point(data = act_data_long %>% filter(metric == "activity_int"), 
+           aes(fill = metric)) +
+  
+  geom_point(data = act_data_long %>% filter(metric == "temperature"), 
+            aes(color = metric)) +
+  
+  geom_point(data = act_data_long %>% filter(metric == "hr"), 
+             aes(color = metric)) +
+  
+  # Labels and theme
+  labs(title = "activity_int, Temperature, and Heart Rate Over Time",
+       x = "Time",
+       y = "Value",
+       color = "Metrics",
+       fill = "Metrics") +
+  
+  # Facet by metric
+  facet_wrap(~ metric, scales = "free_y", nrow = 3) +
+  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
