@@ -1,3 +1,8 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
 ```{r}
 library(dplyr)
 library(tidyr)
@@ -11,19 +16,27 @@ source("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/wit
 
 set participant data folder
 ```{r}
+#folder_name<-"data_ART_1727097278"
+#  start_date<-"2024-08-30 06:00:00"
+#  end_date  <-"2024-09-08 06:00:00"
+
+#folder_name<-"data_VIV_1727185308"
+#  start_date<-"2024-08-30 06:00:00"
+#  end_date  <-"2024-09-08 06:00:00"
+
 #folder_name<-"data_JAA_1727098304"
-folder_name<-"data_ART_1727097278"
+#  start_date<-"2024-08-30 06:00:00"
+#  end_date  <-"2024-09-08 06:00:00"
+
+folder_name<-"data_CEC_1727186111"
+  start_date<-"2024-08-29 06:00:00"
+  end_date  <-"2024-09-08 06:00:00"
+
+
 
 
 path<-paste0("C:/Users/d.vitali/Downloads/",folder_name,"/")
 
-
-```
-
-set start-end date
-```{r}
-start_date<-"2024-09-19 06:00:00"
-end_date  <-"2024-09-23 06:00:00"
 
 ```
 
@@ -244,13 +257,35 @@ act_data_NA <- act_data_NA %>%
 ggplot(act_data_NA, aes(x = timestamp, y = minutes_diff)) +
   geom_line() +
   scale_y_continuous(breaks = seq(0, max(act_data_NA$minutes_diff, na.rm = TRUE), by = 10)) + 
-  labs(title = "Time Difference Between Observations", 
+  labs(title = "Time Difference Between HR Observations", 
        x = "Timestamp", 
        y = "Minutes Difference") +
   theme_minimal()
 
 
 ```
+
+# explore missing Temperature datapoints
+```{r}
+act_data_NA<-act_data %>% filter(!is.na(temperature))
+act_data_NA <- act_data_NA %>%
+  arrange(timestamp) %>%  
+  mutate(minutes_diff = as.numeric(difftime(timestamp, lag(timestamp), units = "mins")))
+
+ggplot(act_data_NA, aes(x = timestamp, y = minutes_diff)) +
+  geom_line() +
+  scale_y_continuous(breaks = seq(0, max(act_data_NA$minutes_diff, na.rm = TRUE), by = 10)) + 
+  labs(title = "Time Difference Between Temp Observations", 
+       x = "Timestamp", 
+       y = "Minutes Difference") +
+  theme_minimal()
+
+
+```
+
+
+
+
 
 # OTHER derived
 ```{r}
