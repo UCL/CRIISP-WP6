@@ -13,4 +13,5 @@ __pycache__/
 access_token.json
 auth_ok
 *.conf
-
+*.csv
+Data/
