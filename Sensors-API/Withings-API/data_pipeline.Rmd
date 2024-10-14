@@ -38,7 +38,7 @@ source("withings_func.R")
 
 ```{r}
 #set credentials for this participant
-Participant_id<-"credentials/P_01.conf"
+Participant_id<-"credentials/P_03.conf"
   
 ```
 

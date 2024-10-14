@@ -17,29 +17,51 @@ source("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/wit
 set participant data folder
 ```{r}
 #folder_name<-"data_ART_1727097278"
-#  start_date<-"2024-08-30 06:00:00"
-#  end_date  <-"2024-09-08 06:00:00"
+#  start_date<-"2024-09-20 06:00:00"
+#  end_date  <-"2024-09-25 06:00:00"
 
-#folder_name<-"data_VIV_1727185308"
-#  start_date<-"2024-08-30 06:00:00"
-#  end_date  <-"2024-09-08 06:00:00"
+folder_name<-"data_ART_1728911904"
+  start_date<-"2024-09-20 06:00:00"
+  end_date  <-"2024-09-27 06:00:00"
 
 #folder_name<-"data_JAA_1727098304"
-#  start_date<-"2024-08-30 06:00:00"
+#  start_date<-"2024-09-04 06:00:00"
+#  end_date  <-"2024-09-12 06:00:00"
+
+#folder_name<-"data_CEC_1727186111"
+#  start_date<-"2024-08-29 06:00:00"
 #  end_date  <-"2024-09-08 06:00:00"
 
-folder_name<-"data_CEC_1727186111"
-  start_date<-"2024-08-29 06:00:00"
-  end_date  <-"2024-09-08 06:00:00"
 
 
 
-
-path<-paste0("C:/Users/d.vitali/Downloads/",folder_name,"/")
+path<-paste0("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-CSV/Data/",folder_name,"/")
 
 
 ```
 
+# BODY temperature
+monitored  ~ 1400/day (~58/hr)
+
+```{r}
+# Sample data
+temperature_csv <- read.csv(file = paste0(path,"raw_core_body_temperature_Core body temperature.csv"), header = TRUE, sep = ",")
+
+# Convert start column to datetime
+temperature_csv$start <- ymd_hms(temperature_csv$start,  tz = "UTC")
+
+temperature_data<-expand_csv_data(temperature_csv) %>%
+  filter(timestamp < end_date & timestamp > start_date)
+
+temperature_data %>%
+  # Create a new column 'day' that groups by date
+  mutate(day = as.Date(timestamp)) %>%
+  # Group by day
+  group_by(day) %>%
+  # Count non-NA values in the heart_rate column
+  summarise(non_na_count = sum(!is.na(value))) 
+
+```
 
 # STEPS
 ad hoc (whenever more than 0 step is recorded)
@@ -63,28 +85,7 @@ steps_data %>%
 
 ```
 
-# BODY temperature
-monitored  ~ 1400/day (~58/hr)
 
-```{r}
-# Sample data
-temperature_csv <- read.csv(file = paste0(path,"raw_core_body_temperature_Core body temperature.csv"), header = TRUE, sep = ",")
-
-# Convert start column to datetime
-temperature_csv$start <- ymd_hms(temperature_csv$start,  tz = "UTC")
-
-temperature_data<-expand_csv_data(temperature_csv) %>%
-  filter(timestamp < end_date & timestamp > start_date)
-
-temperature_data %>%
-  # Create a new column 'day' that groups by date
-  mutate(day = as.Date(timestamp)) %>%
-  # Group by day
-  group_by(day) %>%
-  # Count non-NA values in the heart_rate column
-  summarise(non_na_count = sum(!is.na(value)))
-
-```
 
 # Heart Rate
 monitored  ~ 140/day (~6/hr)
@@ -121,6 +122,8 @@ activity_intensity_csv$start <- ymd_hms(activity_intensity_csv$start,  tz = "UTC
 
 activity_intensity_data<-expand_csv_data(activity_intensity_csv) %>%
   filter(timestamp < end_date & timestamp > start_date)
+
+activity_intensity_data$value[activity_intensity_data$value>5]<-NA
 
 activity_intensity_data%>%
   # Create a new column 'day' that groups by date
@@ -231,7 +234,7 @@ ggplot(act_data_long, aes(x = timestamp, y = value)) +
              aes(color = metric)) +
   
   # Labels and theme
-  labs(title = "activity_int, steps, Temperature, and Heart Rate Over Time",
+  labs(title = paste(folder_name,"activity intensity, Heart Rate, steps and temperature Over Time"),
        x = "Time",
        y = "Value",
        color = "Metrics",
@@ -246,8 +249,9 @@ ggplot(act_data_long, aes(x = timestamp, y = value)) +
 
 ```
 
+#MISSINGNESS
 
-# explore missing hr datapoints
+## explore missing hr datapoints
 ```{r}
 act_data_NA<-act_data %>% filter(!is.na(hr))
 act_data_NA <- act_data_NA %>%
@@ -265,7 +269,7 @@ ggplot(act_data_NA, aes(x = timestamp, y = minutes_diff)) +
 
 ```
 
-# explore missing Temperature datapoints
+## explore missing Temperature datapoints
 ```{r}
 act_data_NA<-act_data %>% filter(!is.na(temperature))
 act_data_NA <- act_data_NA %>%
@@ -298,6 +302,8 @@ distance_csv$start <- ymd_hms(distance_csv$start,  tz = "UTC")
 distance_data<-expand_csv_data(distance_csv)
 
 ```
+
+
 ```{r}
 # Sample data
 elevation_csv <- read.csv(file = paste0(path,"raw_elevation_Elevation.csv"), header = TRUE, sep = ",")
@@ -307,4 +313,63 @@ elevation_csv$start <- ymd_hms(elevation_csv$start,  tz = "UTC")
 
 
 elevation_data<-expand_csv_data(elevation_csv)
+```
+
+
+raw_tracker_ACTIREC_FEAT.csv
+```{r}
+# Sample data
+actirec_csv <- read.csv(file = paste0(path,"raw_tracker_ACTIREC_FEAT.csv"), header = TRUE, sep = ",")
+
+# Convert start column to datetime
+actirec_csv$start <- ymd_hms(actirec_csv$start,  tz = "UTC")
+
+
+actirec_data<-expand_csv_data(actirec_csv)
+
+
+act_data <- full_join(act_data, actirec_data, by = "timestamp")
+
+colnames(act_data)<-c("timestamp","steps","activity_int","temperature","hr","unknown")
+
+
+plot_data<-act_data %>% filter(timestamp> start_date)
+
+# Reshape the data for faceting
+act_data_long <- plot_data %>%
+  pivot_longer(cols = c(activity_int, steps, temperature, hr,unknown),
+               names_to = "metric",
+               values_to = "value")
+
+# Create the plot with facets
+ggplot(act_data_long, aes(x = timestamp, y = value)) +
+  
+  geom_point(data = act_data_long %>% filter(metric == "activity_int"), 
+           aes(fill = metric)) +
+  
+  geom_point(data = act_data_long %>% filter(metric == "steps"), 
+           aes(fill = metric)) +
+  
+  geom_point(data = act_data_long %>% filter(metric == "temperature"), 
+            aes(color = metric)) +
+  
+  geom_point(data = act_data_long %>% filter(metric == "hr"), 
+             aes(color = metric)) +
+  
+  geom_point(data = act_data_long %>% filter(metric == "unknown"), 
+             aes(color = metric)) +
+  
+  # Labels and theme
+  labs(title = paste(folder_name,"activity intensity, Heart Rate, steps, temperature and ?unkn Over Time"),
+       x = "Time",
+       y = "Value",
+       color = "Metrics",
+       fill = "Metrics") +
+  
+  # Facet by metric
+  facet_wrap(~ metric, scales = "free_y", nrow = 4) +
+  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 ```
