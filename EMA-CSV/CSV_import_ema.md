@@ -113,150 +113,36 @@ reaction to injury and pain.
 # Daily Mood, Stress, and pain intensity
 
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
-    ## Warning: Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-    ## Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-    ## Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
 
 ![](CSV_import_ema_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ## Daily pain interference
 
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 92 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 93 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
-    ## Warning: Removed 92 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-
-    ## Warning: Removed 93 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-
-    ## Warning: Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-    ## Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
 
 ![](CSV_import_ema_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
 
 ## Pain Mood and Pain interference Over Time
 
-    ## Warning: Removed 1 row containing missing values or values outside the scale range
-    ## (`geom_tile()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
-    ## Warning: Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-    ## Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-    ## Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 92 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 93 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
-    ## Warning: Removed 92 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-
-    ## Warning: Removed 93 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-
-    ## Warning: Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-    ## Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
 
 ![](CSV_import_ema_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ## Social Activity
 
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 93 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
     ## `geom_smooth()` using formula = 'y ~ x'
-
-    ## Warning: Removed 14 rows containing non-finite outside the scale range
-    ## (`stat_smooth()`).
-
-    ## Warning: Removed 16 rows containing missing values or values outside the scale range
-    ## (`geom_smooth()`).
-
-    ## Warning: Removed 93 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-
-    ## Warning: Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
-    ## Removed 14 rows containing missing values or values outside the scale range
-    ## (`geom_point()`).
 
 ![](CSV_import_ema_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->

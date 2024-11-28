@@ -189,7 +189,7 @@ p1
 
 # Daily Mood, Stress, and pain intensity
 
-```{r echo = F,warnings= F}
+```{r echo = F, warning = F}
 p2<-ggplot(data_1c, aes(x = day_count)) +
   # Add horizontal line for mood inflection point
   geom_hline(yintercept = 5, linetype = "dashed", color = "gray50", alpha = 0.5) +
@@ -218,7 +218,7 @@ p2
 
 
 ## Daily pain interference
-```{r echo = F,warnings= F}
+```{r echo = F, warning= F}
 p3<-ggplot(data_1c, aes(x = day_count)) +
   # Add horizontal line for mood inflection point
   geom_hline(yintercept = 5, linetype = "dashed", color = "gray50", alpha = 0.5) +
@@ -253,7 +253,7 @@ p3
 
 ## Pain Mood and Pain interference Over Time
 
-```{r echo = F,warnings= F}
+```{r echo = F, warning= F}
 library(patchwork)
 # Combine plots vertically
 combined_plot <- p1 / p2 / p3 +
@@ -269,7 +269,7 @@ combined_plot
 ```
 
 ## Social Activity
-```{r echo = F,warnings= F}
+```{r echo = F, warning= F}
 
 # Create a function to process the data with a type indicator
 create_daily_data <- function(data, column_name, type) {
@@ -288,9 +288,10 @@ create_daily_data <- function(data, column_name, type) {
 # Create datasets for each type
 social_data <- create_daily_data(data_1c, "Social_multipleChoice_string", "Social Contacts")
 location_data <- create_daily_data(data_1c, "Location_multipleChoice_string", "Locations")
+Activity_data <- create_daily_data(data_1c, "Activity_multipleChoice_string", "Activity")
 
 # Combine all data
-combined_data <- bind_rows(social_data, location_data)
+combined_data <- bind_rows(Activity_data, social_data, location_data)
 
 # Create the combined plot
 p4<-ggplot(combined_data, aes(x = day_count, y = activity, fill = count)) +
