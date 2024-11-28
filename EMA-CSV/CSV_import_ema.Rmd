@@ -17,7 +17,8 @@ library(lubridate)
 
 
 ```{r echo=FALSE}
-
+## sanitise the EMA csv downloaded from M-path before importing it here.
+# use th bash script "sanitiseEMA.sh" in ../data/
 # Read the CSV data
 data <- read.csv("C:/Documents and Settings/d.vitali/Desktop/Github/CRIISP-WP6/Data/EMA_basic_sanitized.csv", na.strings = "",sep = ";")
 
