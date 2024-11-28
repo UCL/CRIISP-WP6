@@ -253,7 +253,7 @@ p3
 
 ## Pain Mood and Pain interference Over Time
 
-```{r echo = F, warning= F}
+```{r echo = F, warning= F, fig.width=10, fig.height=10}
 library(patchwork)
 # Combine plots vertically
 combined_plot <- p1 / p2 / p3 +
@@ -269,7 +269,7 @@ combined_plot
 ```
 
 ## Social Activity
-```{r echo = F, warning= F}
+```{r echo = F, warning= F, fig.width=10, fig.height=7}
 
 # Create a function to process the data with a type indicator
 create_daily_data <- function(data, column_name, type) {
