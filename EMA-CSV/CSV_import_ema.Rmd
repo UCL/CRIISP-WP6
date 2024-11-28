@@ -288,10 +288,20 @@ create_daily_data <- function(data, column_name, type) {
 # Create datasets for each type
 social_data <- create_daily_data(data_1c, "Social_multipleChoice_string", "Social Contacts")
 location_data <- create_daily_data(data_1c, "Location_multipleChoice_string", "Locations")
-Activity_data <- create_daily_data(data_1c, "Activity_multipleChoice_string", "Activity")
+activity_data <- create_daily_data(data_1c, "Activity_multipleChoice_string", "Activity")
 
 # Combine all data
-combined_data <- bind_rows(Activity_data, social_data, location_data)
+combined_data <- bind_rows(activity_data, social_data, location_data)
+
+combined_data <- combined_data %>%
+  mutate(
+    activity = case_when(
+      activity == "Active free-time (walking/ sports/ gardening)" ~ "Active free-time",
+      activity == "Non-active free-time (TV/computer/ video games/ social media/ reading)" ~ "Non-active free-time",
+      activity == "Socialising outside (going to the pub/ cinema/ theatre/ going out)" ~ "Socialising outside",
+      TRUE ~ activity
+    )
+  )
 
 # Create the combined plot
 p4<-ggplot(combined_data, aes(x = day_count, y = activity, fill = count)) +
@@ -342,10 +352,12 @@ p5<-ggplot(data_1c, aes(x = day_count)) +
 
 # Combine plots vertically with adjusted heights
 combined_plot <- p4 / p5 + 
-  plot_layout(heights = c(2, 1)) +  # Adjust the ratio between plots (2:1)
+  plot_layout(heights = c(4, 1)) +  # Adjust the ratio between plots (2:1)
   plot_annotation(
     title = "Social Interactions Analysis",
     theme = theme_minimal()
   )
+
 combined_plot
+
 ```
