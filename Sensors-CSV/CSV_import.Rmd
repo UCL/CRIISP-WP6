@@ -20,9 +20,9 @@ set participant data folder
 #  start_date<-"2024-09-20 06:00:00"
 #  end_date  <-"2024-09-25 06:00:00"
 
-folder_name<-"data_ART_1728911904"
-  start_date<-"2024-09-20 06:00:00"
-  end_date  <-"2024-09-27 06:00:00"
+folder_name<-"data_PIP_1732759873"
+  start_date<-"2024-10-22 06:00:00"
+  end_date  <-"2024-11-23 06:00:00"
 
 #folder_name<-"data_JAA_1727098304"
 #  start_date<-"2024-09-04 06:00:00"
@@ -61,8 +61,95 @@ temperature_data %>%
   # Count non-NA values in the heart_rate column
   summarise(non_na_count = sum(!is.na(value))) 
 
+library(zoo)  # Add this at the top with your other library calls
+
+# Clean temperature data
+cleaned_temperature_data <- temperature_data %>%
+  arrange(timestamp) %>%
+  mutate(
+    # Calculate rate of change between consecutive measurements
+    temp_change = (value - lag(value)),
+    # Mark sudden spikes (you can adjust these thresholds)
+    is_spike = abs(temp_change) > 0.3,  # Sudden change of more than 0.5°C
+    # Create a rolling median for comparison
+    rolling_median = rollmedian(value, k = 10, fill = NA, align = "center"),
+    # Mark values that deviate too much from rolling median
+    is_outlier = abs(value - rolling_median) > 0.2,
+    # Clean the values
+    cleaned_value = case_when(
+      value < 35 | value > 45 ~ NA_real_,  # Remove physiologically impossible values
+      is_spike & is_outlier ~ NA_real_,    # Remove sudden spikes that are outliers
+      TRUE ~ value
+    )
+  )
+
+# Create visualization to compare original and cleaned data
+p1 <- ggplot(cleaned_temperature_data, aes(x = timestamp)) +
+  geom_point(aes(y = value), color = "red", alpha = 0.2, size = 1) +
+  geom_line(aes(y = rolling_median), color = "blue", linewidth = 0.5) +
+  geom_point(aes(y = cleaned_value), color = "green", alpha = 0.2, size = 1) +
+  labs(title = "Temperature Data Cleaning",
+       subtitle = "Red: original, Blue: rolling median, Green: cleaned",
+       y = "Temperature (°C)",
+       x = "Time") +
+  theme_minimal()
+
+# Create plot showing the changes that were removed
+p2 <- ggplot(cleaned_temperature_data, aes(x = timestamp)) +
+  geom_point(aes(y = temp_change), color = "gray", alpha = 0.2) +
+  geom_hline(yintercept = c(0.5, -0.5), color = "red", linetype = "dashed") +
+  labs(title = "Temperature Changes",
+       y = "Temperature Change (°C)",
+       x = "Time") +
+  theme_minimal()
+
+# Combine plots using patchwork
+p1 / p2
+
+
 ```
 
+```{r}
+# Resample temperature data to 10-minute averages
+temperature_10min <- cleaned_temperature_data %>%
+  # Round timestamp to nearest 10 minutes
+  mutate(
+    timestamp_10min = floor_date(timestamp, unit = "10 minutes")
+  ) %>%
+  # Group by 10-minute intervals and calculate mean
+  group_by(timestamp_10min) %>%
+  summarise(
+    value = mean(value, na.rm = TRUE)
+  ) %>%
+  # Remove any NaN that might result from all NA values in a window
+  filter(!is.nan(value))
+
+# Create two plots to compare original and resampled data
+p1 <- ggplot() +
+  geom_point(data = temperature_data, 
+             aes(x = timestamp, y = value), 
+             color = "gray80", 
+             alpha = 0.2) +
+  labs(title = "Original Temperature Data",
+       x = "Time",
+       y = "Temperature") +
+  theme_minimal()
+
+p2 <- ggplot() +
+  geom_point(data = temperature_10min, 
+             aes(x = timestamp_10min, y = value), 
+             color = "red", 
+             size = 1) +
+  labs(title = "10-minute Averaged Temperature",
+       x = "Time",
+       y = "Temperature") +
+  theme_minimal()
+
+# Display plots side by side using the | operator
+p1 | p2
+
+
+```
 # STEPS
 ad hoc (whenever more than 0 step is recorded)
 ```{r}
@@ -135,6 +222,23 @@ activity_intensity_data%>%
 
 ```
 
+```{r}
+# Resample activity intensity data to 10-minute averages
+activity_intensity_10min <- activity_intensity_data %>%
+  # Round timestamp to nearest 10 minutes
+  mutate(
+    timestamp_10min = floor_date(timestamp, unit = "10 minutes")
+  ) %>%
+  # Group by 10-minute intervals and calculate mean
+  group_by(timestamp_10min) %>%
+  summarise(
+    value = mean(value, na.rm = TRUE)
+  ) %>%
+  # Remove any NaN that might result from all NA values in a window
+  filter(!is.nan(value))
+
+```
+
 # Sleep states
 ```{r}
 # Sample data
@@ -190,17 +294,13 @@ ECG_data<-as_tibble(ECG_csv)%>%
 # Merge steps, activity, hr, temperature
 ```{r}
 
-act_data <- full_join(steps_data, activity_intensity_data, by = "timestamp")
+act_data <- full_join(temperature_10min, activity_intensity_10min, by = "timestamp_10min")
 
-colnames(act_data)<-c("timestamp","steps","activity_int")
-
-act_data <- full_join(act_data, temperature_data, by = "timestamp")
-
-colnames(act_data)<-c("timestamp","steps","activity_int","temperature")
+colnames(act_data)<-c("timestamp","temp","activity_int")
 
 act_data <- full_join(act_data, HR_data, by = "timestamp")
 
-colnames(act_data)<-c("timestamp","steps","activity_int","temperature","hr")
+colnames(act_data)<-c("timestamp","temperature","activity_int","hr")
 
 
 ```
@@ -214,37 +314,63 @@ plot_data<-act_data
 
 # Reshape the data for faceting
 act_data_long <- plot_data %>%
-  pivot_longer(cols = c(activity_int, steps, temperature, hr),
+  pivot_longer(cols = c(activity_int, temperature, hr),
                names_to = "metric",
                values_to = "value")
 
-# Create the plot with facets
-ggplot(act_data_long, aes(x = timestamp, y = value)) +
-  
-  geom_point(data = act_data_long %>% filter(metric == "activity_int"), 
-           aes(fill = metric)) +
-  
-  geom_point(data = act_data_long %>% filter(metric == "steps"), 
-           aes(fill = metric)) +
-  
-  geom_point(data = act_data_long %>% filter(metric == "temperature"), 
-            aes(color = metric)) +
-  
-  geom_point(data = act_data_long %>% filter(metric == "hr"), 
-             aes(color = metric)) +
-  
-  # Labels and theme
-  labs(title = paste(folder_name,"activity intensity, Heart Rate, steps and temperature Over Time"),
-       x = "Time",
-       y = "Value",
-       color = "Metrics",
-       fill = "Metrics") +
-  
-  # Facet by metric
+# Prepare sleep periods from summary data
+sleep_bands <- sleepsummary_data %>%
+  select(from, to) %>%
+  mutate(source = "sleep_summary")
+
+# Create the main plot
+ggplot(act_data_long %>%
+         mutate(
+           value = case_when(
+             metric == "temperature" & (value < 35 | value > 45) ~ NA_real_,
+             TRUE ~ value
+           ),
+           # Create day numbers starting from 0
+           day_number = as.numeric(difftime(timestamp, min(timestamp, na.rm = TRUE), units = "days"))
+         ), 
+       aes(x = day_number, y = value)) +  # Change x aesthetic to day_number
+  geom_rect(data = sleep_bands %>%
+              mutate(day_from = as.numeric(difftime(from, min(act_data_long$timestamp, na.rm = TRUE), units = "days")),
+                     day_to = as.numeric(difftime(to, min(act_data_long$timestamp, na.rm = TRUE), units = "days"))),
+            aes(xmin = day_from, 
+                xmax = day_to),
+            ymin = -Inf, 
+            ymax = Inf,
+            fill = "gray80",
+            alpha = 0.4,
+            inherit.aes = FALSE) +
+  # Separate geom_point layers for different metrics with different alphas
+  geom_point(aes(color = metric), alpha = 0.2) +
+  scale_color_manual(values = c(
+    "activity_int" = "blue",
+    "steps" = "black",
+    "temperature" = "red",
+    "hr" = "red"
+  )) +
+
+  # Add breaks for each day
+  scale_x_continuous(breaks = function(x) seq(0, floor(max(x)), by = 1)) +
+
   facet_wrap(~ metric, scales = "free_y", nrow = 4) +
-  
+
+  labs(title = paste(folder_name, "Activity Intensity, Heart Rate, Steps and Temperature Over Time"),
+       subtitle = "Gray bands indicate sleep periods",
+       x = "Days from Start",
+       y = "Value",
+       color = "Metrics") +
+
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(1, "lines"),
+    legend.position = "right"
+  )
+
 
 
 ```

@@ -1,0 +1,349 @@
+---
+title: "EMA single case data"
+output: 
+  github_document:
+    toc: True
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+```{r echo = F, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(lubridate)
+
+```
+
+
+
+```{r echo=FALSE}
+
+# Read the CSV data
+data <- read.csv("C:/Documents and Settings/d.vitali/Desktop/Github/CRIISP-WP6/Data/EMA_basic_sanitized.csv", na.strings = "",sep = ";")
+
+# select participant alias
+data_1c<-data %>% filter(alias=="P005")
+
+# Remove columns that are all NA
+data_1c <- data_1c %>%
+  select(where(~!all(is.na(.))))
+
+```
+
+
+# Case details
+
+  * Sex: F
+  * Age: 32
+
+## BASELINE DATA:
+
+### BPI
+
+ The BPI allows patients to rate the severity of their pain and the degree to which their pain interferes with common dimensions of feeling and function. The interference scale includes  seven domains: 1. General activity,  2. Mood,  3. Walking ability,  4. Normal work (including housework),  5. Relations with other people,  6. Sleep, and  7. Enjoyment of life.
+
+**Pain Location**
+
+  * Lower Back 
+  * Right hand
+  * Left Glute
+  * Left leg
+
+**Pain intensity in the previous 24h:**
+
+|        | score   |
+|--------|---------|
+| worst  | 10/10   |
+| average| 6.75/10 |
+
+**Pain interference in the previous 24h:**
+
+|        | score   |
+|--------|---------|
+|average | 7.85/10 |
+ 
+  
+**Pain Medication**
+
+  * Amitriptyline (tricyclic antidepressant)
+  * duloxetine  (SNRI)
+
+  * codeine (opioid medication)
+  * naproxen (NSAID)
+
+
+### Psychological wellbeing
+
+#### PHQ9
+The PHQ-9 is a 9 item questionnaire aimed at scoring each of the nine DSM-IV criteria. It is generally used to monitor the severity of depression symptomatology and considers scores above 20 as *severe* (range 0:27).
+
+|        | score |
+|--------|-------|
+|**PHQ9**| 24/27 |
+
+#### PSEQ
+The Pain Self-Efficacy Questionnaire (PSEQ) is a 10-item questionnaire developed to assess the confidence people with ongoing pain have in performing activities while in pain. The scoring range is 0:60 with higher scores indicating greater confidence in dealing with pain. Scores of 40 (percentile 50) are generally associated with favourable chance of "returning to work", lower scores (for example a raw score of 30, percentile = 18) tend to predict less sustainable gains.
+
+The PSEQ scores are helpful in developing a formulation around psychological factors (e.g. beliefs) that influence the respondent's reaction to injury and pain.
+
+|        | score |
+|--------|-------|
+|**PSEQ**| 16/60 |
+
+
+
+# data prep
+
+```{r echo = F, warnings= F}
+# Convert Unix timestamp to datetime
+data_1c<-data_1c %>%
+  mutate(
+    datetime = as_datetime(timeStampStart),
+    date = date(datetime),
+    Mood_dec = Mood_smiley/10
+  )
+
+data_1c <- data_1c %>%
+  arrange(datetime) %>%
+  mutate(day_count = as.numeric(date - min(date, na.rm = TRUE)),
+    is_weekend = wday(date) %in% c(1, 7)
+    )
+```
+
+# Reported pain locations
+```{r echo = F, warnings= F}
+##################################
+#################################
+# Split the pain locations into separate rows
+pain_locations <- data_1c %>%
+  select(datetime, Pain.location_bodyParts) %>%
+  separate_rows(Pain.location_bodyParts, sep = ",") %>%
+  mutate(Pain.location_bodyParts = trimws(Pain.location_bodyParts))
+
+# Overall frequency of pain locations
+pain_freq <- pain_locations %>%
+  count(Pain.location_bodyParts, sort = TRUE) %>%
+  mutate(percentage = n/sum(n)*100)
+
+# Print overall frequencies
+#print("Overall Pain Location Frequencies:")
+#print(pain_freq)
+
+# Create a bar plot of pain locations
+ggplot(pain_freq, aes(x = reorder(Pain.location_bodyParts, n), y = n)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Frequency of Pain Locations",
+       x = "Location",
+       y = "Count") +
+  theme_minimal()
+```
+
+## Daily Pain Locations and flares-up
+```{r echo = F, warnings= F}
+
+location_order <- c(
+  "left foot", "right foot",
+  "left knee", "right knee",
+  "left leg", "right leg",
+  "back", "belly",
+  "left hand", "left arm",
+  "right hand","right arm",
+  "neck and shoulders", "neck", "head"
+)
+
+# Split pain locations and create weighted intensity
+daily_pain_weighted <- data_1c %>%
+  select(day_count, Pain.location_bodyParts, Pain.intensity_sliderNeutralPos) %>%
+  separate_rows(Pain.location_bodyParts, sep = ",") %>%
+  mutate(
+    Pain.location_bodyParts = trimws(Pain.location_bodyParts),
+    # Convert to factor with custom order
+    Pain.location_bodyParts = factor(Pain.location_bodyParts, 
+                                   levels = location_order,
+                                   ordered = TRUE)
+  ) %>%
+  group_by(day_count, Pain.location_bodyParts) %>%
+  summarise(
+    frequency = n(),
+    avg_intensity = mean(Pain.intensity_sliderNeutralPos, na.rm = TRUE),
+    weighted_score = frequency * avg_intensity
+  ) %>%
+  ungroup()
+
+# Create weighted heatmap
+p1<-ggplot(daily_pain_weighted, aes(x = day_count, y = Pain.location_bodyParts, fill = weighted_score)) +
+  geom_tile() +
+  scale_fill_gradient(low = "lightgrey", high = "red") +
+  scale_x_continuous(breaks = function(x) seq(floor(min(x)), ceiling(max(x)), by = 1)) +
+  labs(
+    title = "Daily Pain Locations and flares-up",
+    x = "Days from Start",
+    y = "Location",
+    fill = "Pain Score\n(Frequency × Intensity)"
+  ) +
+  theme_minimal()
+p1
+```
+
+# Daily Mood, Stress, and pain intensity
+
+```{r echo = F,warnings= F}
+p2<-ggplot(data_1c, aes(x = day_count)) +
+  # Add horizontal line for mood inflection point
+  geom_hline(yintercept = 5, linetype = "dashed", color = "gray50", alpha = 0.5) +
+  # Smooth lines with less smoothening
+  geom_smooth(aes(y = Mood_dec, color = "Mood"), 
+              method = "loess", span = 0.2, se = FALSE) +
+  geom_smooth(aes(y = Stress_sliderNeutralPos, color = "Stress"), 
+              method = "loess", span = 0.2, se = FALSE) +
+  geom_smooth(aes(y = Pain.intensity_sliderNeutralPos, color = "Pain"), 
+              method = "loess", span = 0.2, se = FALSE) +
+  # Add points for actual data
+  geom_point(aes(y = Mood_dec, color = "Mood"), alpha = 0.3) +
+  geom_point(aes(y = Stress_sliderNeutralPos, color = "Stress"), alpha = 0.3) +
+  geom_point(aes(y = Pain.intensity_sliderNeutralPos, color = "Pain"), alpha = 0.3) +
+  scale_color_manual(values = c("Mood" = "blue", "Stress" = "red", "Pain" = "green")) +
+  scale_y_continuous(breaks = 0:10, limits = c(0,10)) +
+  scale_x_continuous(breaks = function(x) seq(floor(min(x)), ceiling(max(x)), by = 1)) +
+  labs(title = "Mood, Stress, and Pain intensity Over Time",
+       y = "Score",
+       x = "Days from Start",
+       caption = "Low mood < 5, Good mood > 5") +
+  theme_minimal()
+
+p2
+```
+
+
+## Daily pain interference
+```{r echo = F,warnings= F}
+p3<-ggplot(data_1c, aes(x = day_count)) +
+  # Add horizontal line for mood inflection point
+  geom_hline(yintercept = 5, linetype = "dashed", color = "gray50", alpha = 0.5) +
+  # Smooth lines with less smoothening
+  geom_smooth(aes(y = Pain.interf..plans_sliderNeutralPos, color = "Interference with plans"), 
+              method = "loess", span = 0.4, se = FALSE) +
+  geom_smooth(aes(y = Pain.interf..Life.enjoyment_sliderNeutralPos, color = "Interference with life enjoiment"), 
+              method = "loess", span = 0.4, se = FALSE) +
+  geom_smooth(aes(y = Pain.intensity_sliderNeutralPos, color = "Pain intensity"), 
+              method = "loess", span = 0.3, se = FALSE) +
+   geom_smooth(aes(y = Stress_sliderNeutralPos, color = "Stress"), 
+              method = "loess", span = 0.4, se = FALSE) +
+  # Add points for actual data
+  geom_point(aes(y = Pain.interf..plans_sliderNeutralPos, color = "Interference with plans"), alpha = 0.3) +
+  geom_point(aes(y = Pain.interf..Life.enjoyment_sliderNeutralPos, color = "Interference with life enjoiment"), alpha = 0.3) +
+  geom_point(aes(y = Pain.intensity_sliderNeutralPos, color = "Pain intensity"), alpha = 0.3) +
+  geom_point(aes(y = Stress_sliderNeutralPos, color = "Stress"), alpha = 0.3) +
+
+   scale_color_manual(values = c("Interference with plans" = "green", 
+                                "Interference with life enjoiment" = "black", 
+                                "Pain intensity" = "red",
+                                "Stress" = "blue")) +
+  scale_y_continuous(breaks = 0:10, limits = c(0,10)) +
+  scale_x_continuous(breaks = function(x) seq(floor(min(x)), ceiling(max(x)), by = 1)) +
+  labs(title = "",
+       y = "Score",
+       x = "Days from Start") +
+  theme_minimal()
+
+p3
+```
+
+## Pain Mood and Pain interference Over Time
+
+```{r echo = F,warnings= F}
+library(patchwork)
+# Combine plots vertically
+combined_plot <- p1 / p2 / p3 +
+  plot_layout(heights = c(1, 1, 1)) +
+  plot_annotation(
+    title = "Pain Mood and Pain interference Over Time",
+    theme = theme_minimal()
+  )
+
+# Display the combined plot
+combined_plot
+
+```
+
+## Social Activity
+```{r echo = F,warnings= F}
+
+# Create a function to process the data with a type indicator
+create_daily_data <- function(data, column_name, type) {
+  data %>%
+    select(day_count, !!sym(column_name)) %>%
+    separate_rows(!!sym(column_name), sep = ",") %>%
+    mutate(
+      activity = trimws(!!sym(column_name)),
+      type = type
+    ) %>%
+    group_by(day_count, activity, type) %>%
+    summarise(count = n(), .groups = 'drop') %>%
+    filter(!is.na(activity) & activity != "")
+}
+
+# Create datasets for each type
+social_data <- create_daily_data(data_1c, "Social_multipleChoice_string", "Social Contacts")
+location_data <- create_daily_data(data_1c, "Location_multipleChoice_string", "Locations")
+
+# Combine all data
+combined_data <- bind_rows(social_data, location_data)
+
+# Create the combined plot
+p4<-ggplot(combined_data, aes(x = day_count, y = activity, fill = count)) +
+  geom_tile() +
+  scale_fill_gradient(low = "lightgrey", high = "red") +
+  scale_x_continuous(breaks = function(x) seq(floor(min(x)), ceiling(max(x)), by = 1)) +
+  facet_grid(type ~ ., scales = "free_y", space = "free_y") +
+  labs(
+    title = "Daily Activities, Social Contacts, and Locations",
+    x = "Days from Start",
+    y = "",
+    fill = "Frequency"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 8),
+    strip.text.y = element_text(angle = 0),
+    panel.spacing = unit(1, "lines"),
+    legend.position = "right"
+  )
+
+p5<-ggplot(data_1c, aes(x = day_count)) +
+  # Add horizontal line for mood inflection point
+  geom_hline(yintercept = 5, linetype = "dashed", color = "gray50", alpha = 0.5) +
+  # Smooth lines with less smoothening
+  geom_smooth(aes(y = Social.support_sliderNeutralPos, color = "Social Support"), 
+              method = "loess", span = 0.3, se = FALSE) +
+   geom_smooth(aes(y = Stress_sliderNeutralPos, color = "Stress"), 
+              method = "loess", span = 0.3, se = FALSE) +
+  geom_smooth(aes(y = Mood_dec, color = "Mood"), 
+              method = "loess", span = 0.3, se = FALSE) +
+  # Add points for actual data
+  geom_point(aes(y = Social.support_sliderNeutralPos, color = "Social Support"), alpha = 0.3) +
+  geom_point(aes(y = Stress_sliderNeutralPos, color = "Stress"), alpha = 0.3) +
+  geom_point(aes(y = Mood_dec, color = "Mood"), alpha = 0.3) +
+
+  scale_color_manual(values = c("Social Support" = "black",
+                                "Mood" = "blue",
+                                "Stress" = "red")) +
+  scale_y_continuous(breaks = 0:10, limits = c(0,10)) +
+  scale_x_continuous(breaks = function(x) seq(floor(min(x)), ceiling(max(x)), by = 1)) +
+  labs(title = "",
+       y = "Score",
+       x = "Days from Start") +
+  theme_minimal()
+
+
+
+# Combine plots vertically with adjusted heights
+combined_plot <- p4 / p5 + 
+  plot_layout(heights = c(2, 1)) +  # Adjust the ratio between plots (2:1)
+  plot_annotation(
+    title = "Social Interactions Analysis",
+    theme = theme_minimal()
+  )
+combined_plot
+```
