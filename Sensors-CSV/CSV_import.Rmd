@@ -1,21 +1,26 @@
 ---
-output: html_document
-editor_options: 
-  chunk_output_type: console
+title: "EMA single case data"
+output: 
+  github_document:
+    toc: True
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
-```{r}
+```{r echo = F}
 library(dplyr)
 library(tidyr)
 library(lubridate)
 library(stringr)
 library(ggplot2)
+library(zoo)
+library(patchwork)
+
 
 source("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/withings_func.R")
 
 ```
 
 set participant data folder
-```{r}
+```{r warning = F, fig.width=10, fig.height=5}
 #folder_name<-"data_ART_1727097278"
 #  start_date<-"2024-09-20 06:00:00"
 #  end_date  <-"2024-09-25 06:00:00"
@@ -35,7 +40,7 @@ folder_name<-"data_PIP_1732759873"
 
 
 
-path<-paste0("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-CSV/Data/",folder_name,"/")
+path<-paste0("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Data/",folder_name,"/")
 
 
 ```
@@ -43,7 +48,7 @@ path<-paste0("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-CSV/Data/",fol
 # BODY temperature
 monitored  ~ 1400/day (~58/hr)
 
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 temperature_csv <- read.csv(file = paste0(path,"raw_core_body_temperature_Core body temperature.csv"), header = TRUE, sep = ",")
 
@@ -60,57 +65,167 @@ temperature_data %>%
   group_by(day) %>%
   # Count non-NA values in the heart_rate column
   summarise(non_na_count = sum(!is.na(value))) 
+```
 
-library(zoo)  # Add this at the top with your other library calls
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+# First, let's create a function for consistent plotting
+plot_24h_temp <- function(data, start_date) {
+  end_date <- start_date + days(1)
 
-# Clean temperature data
-cleaned_temperature_data <- temperature_data %>%
-  arrange(timestamp) %>%
-  mutate(
-    # Calculate rate of change between consecutive measurements
-    temp_change = (value - lag(value)),
-    # Mark sudden spikes (you can adjust these thresholds)
-    is_spike = abs(temp_change) > 0.3,  # Sudden change of more than 0.5°C
-    # Create a rolling median for comparison
-    rolling_median = rollmedian(value, k = 10, fill = NA, align = "center"),
-    # Mark values that deviate too much from rolling median
-    is_outlier = abs(value - rolling_median) > 0.2,
-    # Clean the values
-    cleaned_value = case_when(
-      value < 35 | value > 45 ~ NA_real_,  # Remove physiologically impossible values
-      is_spike & is_outlier ~ NA_real_,    # Remove sudden spikes that are outliers
-      TRUE ~ value
-    )
-  )
+  data %>% 
+    filter(timestamp >= start_date, timestamp < end_date) %>%
+    ggplot() +
+    geom_line(aes(x = timestamp, y = value), color = "blue") +
+    scale_y_continuous(
+      name = "Temperature") +
+    scale_x_datetime(date_labels = "%H:%M", date_breaks = "1 hours") +
+    labs(
+      title = paste("Temperature Changes:", format(start_date, "%Y-%m-%d")),
+      x = "Time"
+    ) +
+    theme_minimal()
+}
 
-# Create visualization to compare original and cleaned data
-p1 <- ggplot(cleaned_temperature_data, aes(x = timestamp)) +
-  geom_point(aes(y = value), color = "red", alpha = 0.2, size = 1) +
-  geom_line(aes(y = rolling_median), color = "blue", linewidth = 0.5) +
-  geom_point(aes(y = cleaned_value), color = "green", alpha = 0.2, size = 1) +
-  labs(title = "Temperature Data Cleaning",
-       subtitle = "Red: original, Blue: rolling median, Green: cleaned",
-       y = "Temperature (°C)",
-       x = "Time") +
-  theme_minimal()
+# Get the start and end dates from your data
+start_date <- floor_date(min(temperature_data$timestamp), "day")
+end_date <- ceiling_date(max(temperature_data$timestamp), "day")
+dates_seq <- seq(start_date, end_date - days(1), by = "1 day")
 
-# Create plot showing the changes that were removed
-p2 <- ggplot(cleaned_temperature_data, aes(x = timestamp)) +
-  geom_point(aes(y = temp_change), color = "gray", alpha = 0.2) +
-  geom_hline(yintercept = c(0.5, -0.5), color = "red", linetype = "dashed") +
-  labs(title = "Temperature Changes",
-       y = "Temperature Change (°C)",
-       x = "Time") +
-  theme_minimal()
+# Create a list of plots
+plots <- lapply(dates_seq, function(d) plot_24h_temp(temperature_data, d))
 
-# Combine plots using patchwork
-p1 / p2
+# Print each plot
+#for(p in plots) {
+#  print(p)
+#}
 
 
 ```
+##Temperature cleaning
 
-```{r}
-# Resample temperature data to 10-minute averages
+Temperature changes are key indicators of sleep/wake transitions 
+ - Temperature naturally drops during sleep onset 2,5
+ - Warmer temperatures accompany waking up from being asleep 3
+
+data cleaning should suit this:
+
+1. Detect temperature change patterns 5
+3. detect and correct drifts and spikes Using a single rolling mean but accounts for natural temperature variations throughout sleep/awake  cycle 
+
+
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+cleaned_temperature_data <- temperature_data %>%
+  arrange(timestamp) %>%
+  mutate(
+    hour = lubridate::hour(timestamp),
+    
+    # Basic time classification
+    likely_awake = hour >= 8 & hour < 23,
+    
+    # First pass: Remove physiologically impossible values
+    value_filtered = if_else(value > 38.5, NA_real_, value),
+    
+    # Calculate temperature changes
+    temp_change = c(0, diff(value_filtered)),
+    rolling_temp_change = rollapply(temp_change, width = 31, 
+                                    FUN = mean, na.rm = TRUE, fill = "extend"),
+    
+    # Calculate rolling mean for reference
+    rolling_mean = rollapply(value_filtered, width = 361, 
+                             FUN = mean, na.rm = TRUE, fill = "extend"),
+    
+    # Calculate local variability
+    local_mad = rollapply(value_filtered, width = 181, 
+                          FUN = function(x) median(abs(x - median(x, na.rm = TRUE)), na.rm = TRUE),
+                          fill = "extend"),
+    
+    # Classify sleep/wake based on time and temperature patterns
+    is_sleep = case_when(
+      # During night hours (23:00-08:00)
+      !likely_awake & rolling_temp_change < 0 ~ TRUE,  # Temperature dropping
+      !likely_awake & value_filtered < rolling_mean ~ TRUE,  # Lower than average
+      # During day hours
+      likely_awake & rolling_temp_change > 0 ~ FALSE,  # Temperature rising
+      likely_awake ~ FALSE,  # Default to awake during day hours
+      TRUE ~ !likely_awake  # Default to time-based classification
+    ),
+    
+    # Apply corrections
+    cleaned_value = case_when(
+      # Remove physiologically impossible values
+      is.na(value_filtered) ~ rolling_mean,
+      
+      # Correct spikes
+      abs(value_filtered - rolling_mean) > (2 * local_mad) ~ rolling_mean,
+      
+      # Correct drift
+      abs(value_filtered - rolling_mean) > (1.5 * local_mad) ~
+        (0.7 * rolling_mean + 0.3 * value_filtered),
+      
+      # Keep original valid values
+      TRUE ~ value_filtered
+    ),
+    
+    # Final smoothing
+    final_value = rollapply(cleaned_value, width = 5, 
+                            FUN = median, na.rm = TRUE, fill = "extend")
+  )
+
+
+
+ggplot(cleaned_temperature_data) +
+  geom_rect(aes(xmin = timestamp, xmax = lead(timestamp), 
+                ymin = -Inf, ymax = Inf, fill = is_sleep), 
+            alpha = 0.2) +
+  geom_line(aes(x = timestamp, y = value), alpha = 0.7, color = "orange") +
+  geom_line(aes(x = timestamp, y = final_value), color = "red", size = 0.5) +
+#  geom_line(aes(x = timestamp, y = rolling_temp_change * 10 + mean(value, na.rm = TRUE)), 
+#            color = "blue", alpha = 0.3) +  # Scaled temperature change
+  scale_fill_manual(values = c("white", "gray"), 
+                    labels = c("Awake", "Sleep")) +
+  labs(title = "Temperature with Dynamic Corrections",
+       subtitle = "Gray: Original | Red: Corrected | Blue: Temperature Change (scaled)",
+       x = "Time", y = "Temperature") +
+  theme_minimal()
+
+
+# Create histogram with density plots
+ggplot(cleaned_temperature_data, aes(x = value_filtered)) +
+  geom_histogram(aes(fill = likely_awake), 
+                 position = "identity",
+                 alpha = 0.5,
+                 bins = 50) +
+  geom_density(aes(y = ..count.. * 2, color = likely_awake),  # Scale density to match histogram
+               alpha = 0.2) +
+  scale_fill_manual(values = c("darkblue", "orange"),
+                   labels = c("Night (23:00-08:00)", "Day (08:00-23:00)")) +
+  scale_color_manual(values = c("darkblue", "orange"),
+                    labels = c("Night (23:00-08:00)", "Day (08:00-23:00)")) +
+  labs(title = "Distribution of Body Temperature by Time of Day",
+       subtitle = "Showing bimodal pattern between day and night temperatures",
+       x = "Temperature",
+       y = "Count",
+       fill = "Time Period",
+       color = "Time Period") +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+# Add summary statistics
+summary_stats <- cleaned_temperature_data %>%
+  group_by(likely_awake) %>%
+  summarise(
+    mean_temp = mean(value_filtered, na.rm = TRUE),
+    sd_temp = sd(value_filtered, na.rm = TRUE),
+    median_temp = median(value_filtered, na.rm = TRUE),
+    q25 = quantile(value_filtered, 0.25, na.rm = TRUE),
+    q75 = quantile(value_filtered, 0.75, na.rm = TRUE)
+  )
+
+print(summary_stats)
+
+```
+
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 temperature_10min <- cleaned_temperature_data %>%
   # Round timestamp to nearest 10 minutes
   mutate(
@@ -119,40 +234,14 @@ temperature_10min <- cleaned_temperature_data %>%
   # Group by 10-minute intervals and calculate mean
   group_by(timestamp_10min) %>%
   summarise(
-    value = mean(value, na.rm = TRUE)
+    value = mean(final_value, na.rm = TRUE)
   ) %>%
   # Remove any NaN that might result from all NA values in a window
   filter(!is.nan(value))
-
-# Create two plots to compare original and resampled data
-p1 <- ggplot() +
-  geom_point(data = temperature_data, 
-             aes(x = timestamp, y = value), 
-             color = "gray80", 
-             alpha = 0.2) +
-  labs(title = "Original Temperature Data",
-       x = "Time",
-       y = "Temperature") +
-  theme_minimal()
-
-p2 <- ggplot() +
-  geom_point(data = temperature_10min, 
-             aes(x = timestamp_10min, y = value), 
-             color = "red", 
-             size = 1) +
-  labs(title = "10-minute Averaged Temperature",
-       x = "Time",
-       y = "Temperature") +
-  theme_minimal()
-
-# Display plots side by side using the | operator
-p1 | p2
-
-
 ```
 # STEPS
 ad hoc (whenever more than 0 step is recorded)
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 steps_csv <- read.csv(file = paste0(path,"raw_tracker_steps.csv"), header = TRUE, sep = ",")
 
@@ -177,7 +266,7 @@ steps_data %>%
 # Heart Rate
 monitored  ~ 140/day (~6/hr)
 
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 HR_csv <- read.csv(file = paste0(path,"raw_hr_hr.csv"), header = TRUE, sep = ",")
 
@@ -200,7 +289,7 @@ HR_data %>%
 
 # Activity Intensity
 monitored  ~ 200/day (~8/hr)
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 activity_intensity_csv <- read.csv(file = paste0(path,"raw_tracker_Activity Intensity.csv"), header = TRUE, sep = ",")
 
@@ -222,7 +311,7 @@ activity_intensity_data%>%
 
 ```
 
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Resample activity intensity data to 10-minute averages
 activity_intensity_10min <- activity_intensity_data %>%
   # Round timestamp to nearest 10 minutes
@@ -240,7 +329,7 @@ activity_intensity_10min <- activity_intensity_data %>%
 ```
 
 # Sleep states
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 sleepstate_csv <- read.csv(file = paste0(path,"raw_tracker_sleep-state.csv"), header = TRUE, sep = ",")
 
@@ -261,7 +350,7 @@ sleepstate_data %>%
 ```
 
 ## Sleep summary
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 sleepsummary_data <- read.csv(file = paste0(path,"sleep.csv"), header = TRUE, sep = ",")
 
@@ -277,7 +366,7 @@ sleepsummary_data<-sleepsummary_data %>%
 ```
 
 # ECG
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 ECG_csv <- read.csv(file = paste0(path,"signal.csv"), header = TRUE, sep = ",")
 
@@ -292,7 +381,7 @@ ECG_data<-as_tibble(ECG_csv)%>%
 
 
 # Merge steps, activity, hr, temperature
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 
 act_data <- full_join(temperature_10min, activity_intensity_10min, by = "timestamp_10min")
 
@@ -306,9 +395,9 @@ colnames(act_data)<-c("timestamp","temperature","activity_int","hr")
 ```
 
 
+# Sleep detection
 
-
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 
 plot_data<-act_data
 
@@ -378,7 +467,7 @@ ggplot(act_data_long %>%
 #MISSINGNESS
 
 ## explore missing hr datapoints
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 act_data_NA<-act_data %>% filter(!is.na(hr))
 act_data_NA <- act_data_NA %>%
   arrange(timestamp) %>%  
@@ -396,7 +485,7 @@ ggplot(act_data_NA, aes(x = timestamp, y = minutes_diff)) +
 ```
 
 ## explore missing Temperature datapoints
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 act_data_NA<-act_data %>% filter(!is.na(temperature))
 act_data_NA <- act_data_NA %>%
   arrange(timestamp) %>%  
@@ -418,7 +507,7 @@ ggplot(act_data_NA, aes(x = timestamp, y = minutes_diff)) +
 
 
 # OTHER derived
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 distance_csv <- read.csv(file = paste0(path,"raw_tracker_distance.csv"), header = TRUE, sep = ",")
 
@@ -430,7 +519,7 @@ distance_data<-expand_csv_data(distance_csv)
 ```
 
 
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 elevation_csv <- read.csv(file = paste0(path,"raw_elevation_Elevation.csv"), header = TRUE, sep = ",")
 
@@ -443,7 +532,7 @@ elevation_data<-expand_csv_data(elevation_csv)
 
 
 raw_tracker_ACTIREC_FEAT.csv
-```{r}
+```{r echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 actirec_csv <- read.csv(file = paste0(path,"raw_tracker_ACTIREC_FEAT.csv"), header = TRUE, sep = ",")
 
@@ -456,14 +545,14 @@ actirec_data<-expand_csv_data(actirec_csv)
 
 act_data <- full_join(act_data, actirec_data, by = "timestamp")
 
-colnames(act_data)<-c("timestamp","steps","activity_int","temperature","hr","unknown")
+colnames(act_data)<-c("timestamp","temperature","activity_int","hr","steps")
 
 
 plot_data<-act_data %>% filter(timestamp> start_date)
 
 # Reshape the data for faceting
 act_data_long <- plot_data %>%
-  pivot_longer(cols = c(activity_int, steps, temperature, hr,unknown),
+  pivot_longer(cols = c(activity_int, steps, temperature, hr),
                names_to = "metric",
                values_to = "value")
 
@@ -482,11 +571,8 @@ ggplot(act_data_long, aes(x = timestamp, y = value)) +
   geom_point(data = act_data_long %>% filter(metric == "hr"), 
              aes(color = metric)) +
   
-  geom_point(data = act_data_long %>% filter(metric == "unknown"), 
-             aes(color = metric)) +
-  
   # Labels and theme
-  labs(title = paste(folder_name,"activity intensity, Heart Rate, steps, temperature and ?unkn Over Time"),
+  labs(title = paste(folder_name,"activity intensity, Heart Rate, steps, temperature Over Time"),
        x = "Time",
        y = "Value",
        color = "Metrics",
