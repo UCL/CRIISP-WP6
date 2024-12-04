@@ -5,7 +5,7 @@ output:
     toc: True
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
-```{r echo = F}
+```{r, echo = F, warning = F}
 library(dplyr)
 library(tidyr)
 library(lubridate)
@@ -20,7 +20,7 @@ source("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/wit
 ```
 
 set participant data folder
-```{r warning = F, fig.width=10, fig.height=5}
+```{r, warning = F, fig.width=10, fig.height=5}
 #folder_name<-"data_ART_1727097278"
 #  start_date<-"2024-09-20 06:00:00"
 #  end_date  <-"2024-09-25 06:00:00"
@@ -48,7 +48,7 @@ path<-paste0("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Data/",folder_name,"/"
 # BODY temperature
 monitored  ~ 1400/day (~58/hr)
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 temperature_csv <- read.csv(file = paste0(path,"raw_core_body_temperature_Core body temperature.csv"), header = TRUE, sep = ",")
 
@@ -67,7 +67,7 @@ temperature_data %>%
   summarise(non_na_count = sum(!is.na(value))) 
 ```
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # First, let's create a function for consistent plotting
 plot_24h_temp <- function(data, start_date) {
   end_date <- start_date + days(1)
@@ -113,7 +113,7 @@ data cleaning should suit this:
 3. detect and correct drifts and spikes Using a single rolling mean but accounts for natural temperature variations throughout sleep/awake  cycle 
 
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 cleaned_temperature_data <- temperature_data %>%
   arrange(timestamp) %>%
   mutate(
@@ -225,7 +225,7 @@ print(summary_stats)
 
 ```
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 temperature_10min <- cleaned_temperature_data %>%
   # Round timestamp to nearest 10 minutes
   mutate(
@@ -241,7 +241,7 @@ temperature_10min <- cleaned_temperature_data %>%
 ```
 # STEPS
 ad hoc (whenever more than 0 step is recorded)
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 steps_csv <- read.csv(file = paste0(path,"raw_tracker_steps.csv"), header = TRUE, sep = ",")
 
@@ -266,7 +266,7 @@ steps_data %>%
 # Heart Rate
 monitored  ~ 140/day (~6/hr)
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 HR_csv <- read.csv(file = paste0(path,"raw_hr_hr.csv"), header = TRUE, sep = ",")
 
@@ -289,7 +289,7 @@ HR_data %>%
 
 # Activity Intensity
 monitored  ~ 200/day (~8/hr)
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 activity_intensity_csv <- read.csv(file = paste0(path,"raw_tracker_Activity Intensity.csv"), header = TRUE, sep = ",")
 
@@ -311,7 +311,7 @@ activity_intensity_data%>%
 
 ```
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Resample activity intensity data to 10-minute averages
 activity_intensity_10min <- activity_intensity_data %>%
   # Round timestamp to nearest 10 minutes
@@ -329,7 +329,7 @@ activity_intensity_10min <- activity_intensity_data %>%
 ```
 
 # Sleep states
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 sleepstate_csv <- read.csv(file = paste0(path,"raw_tracker_sleep-state.csv"), header = TRUE, sep = ",")
 
@@ -350,7 +350,7 @@ sleepstate_data %>%
 ```
 
 ## Sleep summary
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 sleepsummary_data <- read.csv(file = paste0(path,"sleep.csv"), header = TRUE, sep = ",")
 
@@ -366,7 +366,7 @@ sleepsummary_data<-sleepsummary_data %>%
 ```
 
 # ECG
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 ECG_csv <- read.csv(file = paste0(path,"signal.csv"), header = TRUE, sep = ",")
 
@@ -381,7 +381,7 @@ ECG_data<-as_tibble(ECG_csv)%>%
 
 
 # Merge steps, activity, hr, temperature
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 
 act_data <- full_join(temperature_10min, activity_intensity_10min, by = "timestamp_10min")
 
@@ -397,7 +397,7 @@ colnames(act_data)<-c("timestamp","temperature","activity_int","hr")
 
 # Sleep detection
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 
 plot_data<-act_data
 
@@ -467,7 +467,7 @@ ggplot(act_data_long %>%
 #MISSINGNESS
 
 ## explore missing hr datapoints
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 act_data_NA<-act_data %>% filter(!is.na(hr))
 act_data_NA <- act_data_NA %>%
   arrange(timestamp) %>%  
@@ -485,7 +485,7 @@ ggplot(act_data_NA, aes(x = timestamp, y = minutes_diff)) +
 ```
 
 ## explore missing Temperature datapoints
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 act_data_NA<-act_data %>% filter(!is.na(temperature))
 act_data_NA <- act_data_NA %>%
   arrange(timestamp) %>%  
@@ -507,7 +507,7 @@ ggplot(act_data_NA, aes(x = timestamp, y = minutes_diff)) +
 
 
 # OTHER derived
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 distance_csv <- read.csv(file = paste0(path,"raw_tracker_distance.csv"), header = TRUE, sep = ",")
 
@@ -519,7 +519,7 @@ distance_data<-expand_csv_data(distance_csv)
 ```
 
 
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 elevation_csv <- read.csv(file = paste0(path,"raw_elevation_Elevation.csv"), header = TRUE, sep = ",")
 
@@ -532,7 +532,7 @@ elevation_data<-expand_csv_data(elevation_csv)
 
 
 raw_tracker_ACTIREC_FEAT.csv
-```{r echo = F,  warning = F, fig.width=10, fig.height=5}
+```{r, echo = F,  warning = F, fig.width=10, fig.height=5}
 # Sample data
 actirec_csv <- read.csv(file = paste0(path,"raw_tracker_ACTIREC_FEAT.csv"), header = TRUE, sep = ",")
 
