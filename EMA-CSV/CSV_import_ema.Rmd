@@ -112,7 +112,7 @@ data_1c <- data_1c %>%
 ```
 
 # Reported pain locations
-```{r echo = F, warnings= F}
+```{r echo = F, warnings= F, fig.width=10, fig.height=5}
 ##################################
 #################################
 # Split the pain locations into separate rows
@@ -141,7 +141,7 @@ ggplot(pain_freq, aes(x = reorder(Pain.location_bodyParts, n), y = n)) +
 ```
 
 ## Daily Pain Locations and flares-up
-```{r echo = F, warnings= F}
+```{r echo = F, warnings= F, fig.width=10, fig.height=5}
 
 location_order <- c(
   "left foot", "right foot",
@@ -189,7 +189,7 @@ p1
 
 # Daily Mood, Stress, and pain intensity
 
-```{r echo = F, warning = F}
+```{r echo = F, warning = F, fig.width=10, fig.height=5}
 p2<-ggplot(data_1c, aes(x = day_count)) +
   # Add horizontal line for mood inflection point
   geom_hline(yintercept = 5, linetype = "dashed", color = "gray50", alpha = 0.5) +
@@ -218,7 +218,7 @@ p2
 
 
 ## Daily pain interference
-```{r echo = F, warning= F}
+```{r echo = F, warning= F, fig.width=10, fig.height=5}
 p3<-ggplot(data_1c, aes(x = day_count)) +
   # Add horizontal line for mood inflection point
   geom_hline(yintercept = 5, linetype = "dashed", color = "gray50", alpha = 0.5) +
