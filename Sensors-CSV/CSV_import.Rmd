@@ -15,7 +15,7 @@ library(zoo)
 library(patchwork)
 
 
-source("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Sensors-API/Withings-API/withings_func.R")
+source("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/withings_func.R")
 
 ```
 

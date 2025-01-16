@@ -1,14 +1,17 @@
 EMA single case data
 ================
-04 December, 2024
+16 January, 2025
 
-- [BODY temperature](#body-temperature)
-- [STEPS](#steps)
-- [Heart Rate](#heart-rate)
-- [Activity Intensity](#activity-intensity)
-- [Sleep states](#sleep-states)
-  - [Sleep summary](#sleep-summary)
+- [DIRECT MEASURES](#direct-measures)
+  - [Body Temperature](#body-temperature)
+    - [Temperature cleaning](#temperature-cleaning)
+  - [Step count](#step-count)
+  - [Heart Rate](#heart-rate)
 - [ECG](#ecg)
+- [DERIVED MEASURES](#derived-measures)
+  - [Activity Intensity](#activity-intensity)
+  - [Sleep states](#sleep-states)
+    - [Sleep summary](#sleep-summary)
 - [Merge steps, activity, hr,
   temperature](#merge-steps-activity-hr-temperature)
 - [Sleep detection](#sleep-detection)
@@ -16,6 +19,8 @@ EMA single case data
   - [explore missing Temperature
     datapoints](#explore-missing-temperature-datapoints)
 - [OTHER derived](#other-derived)
+  - [elevation](#elevation)
+  - [activity recognition](#activity-recognition)
 
     ## 
     ## Attaching package: 'dplyr'
@@ -67,7 +72,9 @@ folder_name<-"data_PIP_1732759873"
 path<-paste0("C:/Users/d.vitali/Desktop/Github/CRIISP-WP6/Data/",folder_name,"/")
 ```
 
-# BODY temperature
+# DIRECT MEASURES
+
+## Body Temperature
 
 monitored ~ 1400/day (~58/hr)
 
@@ -86,7 +93,7 @@ monitored ~ 1400/day (~58/hr)
     ## 10 2024-11-01         1440
     ## # ℹ 21 more rows
 
-\##Temperature cleaning
+### Temperature cleaning
 
 Temperature changes are key indicators of sleep/wake transitions -
 Temperature naturally drops during sleep onset 2,5 - Warmer temperatures
@@ -107,7 +114,7 @@ data cleaning should suit this:
     ## 1 FALSE             36.7   0.197        36.6  36.5  36.8
     ## 2 TRUE              37.1   0.278        37.1  37.0  37.2
 
-# STEPS
+## Step count
 
 ad hoc (whenever more than 0 step is recorded)
 
@@ -126,7 +133,7 @@ ad hoc (whenever more than 0 step is recorded)
     ## 10 2024-11-01          377
     ## # ℹ 21 more rows
 
-# Heart Rate
+## Heart Rate
 
 monitored ~ 140/day (~6/hr)
 
@@ -145,7 +152,11 @@ monitored ~ 140/day (~6/hr)
     ## 10 2024-11-01          139
     ## # ℹ 21 more rows
 
-# Activity Intensity
+# ECG
+
+# DERIVED MEASURES
+
+## Activity Intensity
 
 monitored ~ 200/day (~8/hr)
 
@@ -164,7 +175,7 @@ monitored ~ 200/day (~8/hr)
     ## 10 2024-11-01          401
     ## # ℹ 21 more rows
 
-# Sleep states
+## Sleep states
 
     ## # A tibble: 31 × 2
     ##    day        non_na_count
@@ -181,9 +192,7 @@ monitored ~ 200/day (~8/hr)
     ## 10 2024-11-01           24
     ## # ℹ 21 more rows
 
-## Sleep summary
-
-# ECG
+### Sleep summary
 
 # Merge steps, activity, hr, temperature
 
@@ -202,6 +211,10 @@ monitored ~ 200/day (~8/hr)
 ![](CSV_import_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
 
 # OTHER derived
+
+## elevation
+
+## activity recognition
 
 raw_tracker_ACTIREC_FEAT.csv
 ![](CSV_import_files/figure-gfm/unnamed-chunk-20-1.png)<!-- -->
